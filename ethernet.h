@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define ETH_P_MIP 0x88B5
+
 struct ethernet_frame {
     uint8_t destination[6];
     uint8_t source[6];

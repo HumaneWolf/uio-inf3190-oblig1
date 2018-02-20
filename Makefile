@@ -3,7 +3,7 @@ FLAGS = -Wall -Werror -std=gnu11
 
 SERVERFILES = pingserver.c
 CLIENTFILES = pingclient.c
-DAEMONFILES = daemon.c
+DAEMONFILES = daemon.c shared.c mac_utils.c
 
 CLEANFILES = bin/ping_client bin/ping_server bin/mip_daemon
 
