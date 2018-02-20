@@ -6,7 +6,7 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 
-int get_mac_addr(int sock, uint8_t mac[6], char *interface_name) {
+int get_mac_addr(int sock, char mac[6], char *interface_name) {
     struct ifreq dev;
     strcpy(dev.ifr_name, interface_name);
 

@@ -135,7 +135,7 @@ int main(int argc, char* argv[]) {
             }
 
             tmp_interface->sock = sock;
-            get_mac_addr(sock, &(tmp_interface->mac), tmp_addr->ifa_name);
+            get_mac_addr(sock, tmp_interface->mac, tmp_addr->ifa_name);
 
             tmp_interface->next = interfaces;
             interfaces = tmp_interface;
