@@ -1,22 +1,22 @@
 CC = gcc
 FLAGS = -Wall -Werror -std=gnu11
 
-SERVERFILES = server.c
-CLIENTFILES = client.c
+SERVERFILES = pingserver.c
+CLIENTFILES = pingclient.c
 DAEMONFILES = daemon.c
 
-CLEANFILES = client server daemon
+CLEANFILES = bin/ping_client bin/ping_server bin/mip_daemon
 
 all: client server daemon
 
 client: $(CLIENTFILES)
-	$(CC) $(FLAGS) $(CLIENTFILES) -o client
+	$(CC) $(FLAGS) $(CLIENTFILES) -o bin/ping_client
 
 server: $(SERVERFILES)
-	$(CC) $(FLAGS) $(SERVERFILES) -o server
+	$(CC) $(FLAGS) $(SERVERFILES) -o bin/ping_server
 
 daemon: $(DAEMONFILES)
-	$(CC) $(FLAGS) $(DAEMONFILES) -o daemon
+	$(CC) $(FLAGS) $(DAEMONFILES) -o bin/mip_daemon
 
 clean:
 	rm -f $(CLEANFILES)

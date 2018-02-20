@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <ifaddrs.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 int main() {
@@ -26,4 +27,5 @@ int main() {
     }
 
     freeifaddrs(addrs);
+    return EXIT_SUCCESS;
 }
