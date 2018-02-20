@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 /**
  * Add a file descriptor to the epoll.
@@ -147,7 +148,22 @@ int main(int argc, char* argv[]) {
     }
     freeifaddrs(addrs);
 
-    
+    for (;;) {
+        int nfds, n;
+        nfds = epoll_wait(epctrl.epoll_fd, epctrl.events, MAX_EVENTS, -1);
+        if (nfds == -1) {
+            perror("main: epoll_wait()");
+            exit(EXIT_FAILURE);
+        }
+
+        for (n = 0; n < nfds; n++) {
+            // Handle event.
+        }
+        break;
+    }
+
+    close(sock);
+    close(epctrl.unix_fd);
 
     return EXIT_SUCCESS;
 }
