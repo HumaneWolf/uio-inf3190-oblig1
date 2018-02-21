@@ -17,6 +17,12 @@
 #include <unistd.h>
 
 /**
+ * Store whether or not the daemon is expecting a packet now or not.
+ */
+char packetIsExpected = 0;
+
+
+/**
  * Add a file descriptor to the epoll.
  * epctrl - Epoll controller struct.
  * fd - The file descriptor to add.
@@ -33,7 +39,28 @@ int epoll_add(struct epoll_control *epctrl, int fd) {
     return 0;
 }
 
-int main(int argc, char* argv[]) {
+/**
+ * Handle an incoming connection event from any socket.
+ * epctrl - The epoll controller struct.
+ * n - The event to handle.
+ * No return value.
+ */
+void epoll_event(struct epoll_control * epctrl, int n) {
+    if (epctrl->events[n].data.fd == epctrl->unix_fd) {
+        // Message from unix socket.
+    } else {
+        if (!packetIsExpected) {
+            // If the packet is not expected.
+        } else {
+            // If it is expected.
+        }
+    }
+}
+
+/**
+ * Main method.
+ */
+int main(int argc, char * argv[]) {
     // Args count check
     if (argc <= 1) {
         printf("Syntax: %s [-h] [-d] <unix_socket> [MIP addresses]\n", argv[0]);
@@ -107,8 +134,8 @@ int main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    struct ifaddrs *addrs, *tmp_addr;
-    struct eth_interface *tmp_interface;
+    struct ifaddrs * addrs, * tmp_addr;
+    struct eth_interface * tmp_interface;
 
     getifaddrs(&addrs);
     tmp_addr = addrs;
@@ -141,12 +168,14 @@ int main(int argc, char* argv[]) {
             tmp_interface->next = interfaces;
             interfaces = tmp_interface;
 
-            debug_print("[D] %s added.\n", tmp_addr->ifa_name);
+            debug_print("%s added.\n", tmp_addr->ifa_name);
         }
 
         tmp_addr = tmp_addr->ifa_next;
     }
     freeifaddrs(addrs);
+
+    printf("Ready to serve.");
 
     for (;;) {
         int nfds, n;
@@ -156,8 +185,11 @@ int main(int argc, char* argv[]) {
             exit(EXIT_FAILURE);
         }
 
+        debug_print("Handling connection: %d\n", nfds);
+
         for (n = 0; n < nfds; n++) {
             // Handle event.
+            epoll_event(&epctrl, n);
         }
         break;
     }

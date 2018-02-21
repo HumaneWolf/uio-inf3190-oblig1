@@ -6,7 +6,7 @@
 struct eth_interface {
     struct eth_interface *next;
     char* name;
-    char mac[6];
+    uint8_t mac[6];
     int sock;
 };
 
