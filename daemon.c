@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 /**
  * Store whether or not the daemon is expecting a packet now or not.
@@ -46,6 +47,8 @@ int epoll_add(struct epoll_control *epctrl, int fd) {
  * No return value.
  */
 void epoll_event(struct epoll_control * epctrl, int n) {
+    //char buffer[MAX_FRAME_SIZE] = {0};
+
     if (epctrl->events[n].data.fd == epctrl->unix_fd) {
         // Message from unix socket.
     } else {
@@ -101,6 +104,11 @@ int main(int argc, char * argv[]) {
     if (sock == -1) {
         perror("main: socket()");
         exit(EXIT_FAILURE);
+    }
+
+    if (unlink(sockpath) == -1) {
+        perror("main: unlink()");
+        printf("Daemon will continue, but UNIX socket will not be removed after completion.\n");
     }
 
     struct sockaddr_un sockaddr;
