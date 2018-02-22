@@ -39,15 +39,6 @@ void debug_print_frame(struct ethernet_frame * frame) {
     printf("%s\n", frame->msg);
 }
 
-/**
- * If debug printing is enabled; format and print a single message send over the unix socket.
- */
-void debug_print_message(struct ux_message *msg) {
-    if (!setting_debug) return;
-
-    printf("Address (to or from): %d\n", msg->mip_addr);
-    printf("Message: %s\n", msg->msg);
-}
 
 //
 // MIP PACKET RELATED FUNCTIONS

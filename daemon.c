@@ -23,12 +23,28 @@
 char packetIsExpected = 0;
 
 /**
+ * Store the payload we are gonna send after receiving the mac address of an ARP lookup.
+ */
+unsigned char destinationMip;
+char arpBuffer[MAX_PAYLOAD_SIZE] = {0};
+
+/**
+ * Store a linked list of all the connected interfaces, along with information about them.
+ */
+struct eth_interface *interfaces;
+
+/**
+ * Store whether this daemon has any MIP address available, and what the addresses are.
+ */
+char *myAddresses;
+
+/**
  * Store a cache of what MAC address belongs to any MIP address.
  * Format:
  *      macCache[Mip Address] = Mac address.
  *      If mac address is all 0's, assume it is unknown, since that mac is mostly used for loopback.
  */
-//uint8_t macCache[256][7] = {0};
+uint8_t macCache[256][6] = {0};
 
 /**
  * Add a file descriptor to the epoll.
@@ -54,17 +70,66 @@ int epoll_add(struct epoll_control *epctrl, int fd) {
  * No return value.
  */
 void epoll_event(struct epoll_control * epctrl, int n) {
-    //char intBuffer[MAX_UX_MESSAGE_SIZE] = {0}; // Internal communications
-    char extBuffer[MAX_FRAME_SIZE] = {0}; // External communications
+    unsigned char mip_addr = 0; // Mip address storage, for sendmsg and recvmsg.
+    char intBuffer[MAX_PAYLOAD_SIZE] = {0}; // Internal communications buffer
+    char extBuffer[MAX_PACKET_SIZE + sizeof(struct ethernet_frame)] = {0}; // External communications buffer
 
+    // Create the iov and msghdr structs here - Since we use them for a lot of different options.
+    // They define where recvmsg and sendmsg should fetch info from or store information, for our IPC.
+    struct iovec iov[2];
+    iov[0].iov_base = &intBuffer;
+    iov[0].iov_len = MAX_PAYLOAD_SIZE;
+
+    iov[0].iov_base = &mip_addr;
+    iov[0].iov_len = sizeof(mip_addr);
+
+    struct msghdr message = {0};
+    message.msg_iov = iov;
+    message.msg_iovlen = 2;
+
+    // Packet/frame/event type decision tree.
     if (epctrl->events[n].data.fd == epctrl->unix_fd) {
-        // Message from unix socket.
+        if (recvmsg(epctrl->events[n].data.fd, &message, 0) == -1) {
+            perror("epoll_event: recvmsg()");
+            exit(EXIT_FAILURE);
+        }
+        
+        char isMipKnown = 0; // Used to store whether the mip is known after checking the cache.
+        int i;
+        for (i = 0; i < 6; i++) {
+            if (macCache[mip_addr][i] != 0) {
+                isMipKnown = 1;
+            }
+        }
+
+        if (isMipKnown) {
+            struct eth_interface * tmp_interface = interfaces;
+            while (tmp_interface) {
+                struct ethernet_frame * eth_frame = (struct ethernet_frame*)&extBuffer;
+
+                memcpy(eth_frame->destination, macCache[mip_addr], 6);
+                memcpy(eth_frame->source, tmp_interface->mac, 6);
+                eth_frame->protocol = ETH_P_MIP;
+
+                mip_build_header(1, 0, 0, mip_addr, tmp_interface->mip_addr, MAX_PAYLOAD_SIZE, (uint32_t*)(eth_frame->msg));
+
+                memcpy((char*)(&eth_frame->msg[4]), &intBuffer, MAX_PAYLOAD_SIZE);
+
+                send(tmp_interface->sock, &extBuffer, sizeof(extBuffer), 0);
+
+                printf("Frame sent:\n");
+                debug_print_frame(eth_frame);
+
+                tmp_interface = tmp_interface->next;
+            }
+        } else {
+            // Ask for mac addr.
+        }
     } else {
         if (!packetIsExpected) {
-            ssize_t ret = recv(epctrl->events[n].data.fd, &extBuffer, MAX_FRAME_SIZE, 0);
-            if (ret == -1) {
+            if (recv(epctrl->events[n].data.fd, &extBuffer, MAX_PACKET_SIZE, 0) == -1) {
                 perror("epoll_event: recv()");
-                exit (EXIT_SUCCESS);
+                exit(EXIT_FAILURE);
             }
             debug_print("Unexpected packet received.");
             debug_print_frame((struct ethernet_frame*)&extBuffer);
@@ -88,10 +153,7 @@ int main(int argc, char * argv[]) {
 
     // Variables
     char* sockpath = {0};
-    struct eth_interface *interfaces; // Store a linked list of all interfaces.
-    char hasAddr = 0; // Store whether or not this daemon has a MIP address at all.
-    char* myAddresses; // Store a list of all MIP addresses assigned to this daemon.
-    int startAddr = 0; // Used in loop.
+    int addrCount = 0; // Used in loop. Used to store addresses in the right spot.
 
     // Args parsing.
     int i;
@@ -106,10 +168,9 @@ int main(int argc, char * argv[]) {
             sockpath = argv[i];
 
             myAddresses = calloc(argc - i + 1, 0);
-            startAddr = i;
         } else {
-            myAddresses[i - startAddr] = (char)atoi(argv[i]);
-            hasAddr = 1;
+            myAddresses[addrCount] = (char)atoi(argv[i]);
+            addrCount++;
         }
     }
     if (!sockpath) {
@@ -165,6 +226,7 @@ int main(int argc, char * argv[]) {
     getifaddrs(&addrs);
     tmp_addr = addrs;
 
+    int tmp_addrNum = 0; // Counter used to assign MIP addresses.
     while (tmp_addr)
     {
         if (
@@ -172,6 +234,11 @@ int main(int argc, char * argv[]) {
             && tmp_addr->ifa_addr->sa_family == AF_PACKET
             && !(tmp_addr->ifa_flags & IFF_LOOPBACK))
         {
+            // If we have no more MIP addresses we can use, stop storing data about the interfaces,
+            // since we can't use the interfaces anyway.
+            if (!(myAddresses[tmp_addrNum])) {
+                break;
+            }
             tmp_interface = calloc(0, sizeof(struct eth_interface));
 
             tmp_interface->name = calloc(0, strlen(tmp_addr->ifa_name));
@@ -191,24 +258,22 @@ int main(int argc, char * argv[]) {
 
             struct sockaddr_ll sockaddr_net;
             sockaddr_net.sll_family = AF_PACKET;
-            sockaddr_net.sll_protocol = htons(ETH_P_ALL);
+            sockaddr_net.sll_protocol = htons(ETH_P_MIP);
             sockaddr_net.sll_ifindex = if_nametoindex(tmp_addr->ifa_name);
             if (bind(sock, (struct sockaddr*)&sockaddr_net, sizeof(sockaddr_net)) == -1) {
                 perror("main: bind(loop)");
                 exit(EXIT_FAILURE);
             }
 
-            tmp_interface->has_mip_addr = 0;
-            if (hasAddr) {
-                tmp_interface->has_mip_addr = 1;
-                tmp_interface->mip_addr = myAddresses[0];
-            }
+            tmp_interface->mip_addr = myAddresses[tmp_addrNum];
 
             tmp_interface->sock = sock;
             get_mac_addr(sock, tmp_interface->mac, tmp_addr->ifa_name);
 
             tmp_interface->next = interfaces;
             interfaces = tmp_interface;
+
+            tmp_addrNum++; // Increase by one.
 
             debug_print("%s added.\n", tmp_addr->ifa_name);
         }

@@ -3,8 +3,21 @@
 
 #include <stdint.h>
 
+/**
+ * Max size for a single MIP packet, including header and payload.
+ */
+#define MAX_PACKET_SIZE 1500
+
+/**
+ * Max size for the content/payload.
+ * Set lower than MAX_FRAME_SIZE to make sure there is space for the header.
+ */
+#define MAX_PAYLOAD_SIZE 1496
+
+/**
+ * Ethernet protocol number.
+ */
 #define ETH_P_MIP 0x88B5
-#define MAX_FRAME_SIZE 1500
 
 struct ethernet_frame {
     uint8_t destination[6];
