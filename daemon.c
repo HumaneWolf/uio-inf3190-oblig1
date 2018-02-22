@@ -22,6 +22,13 @@
  */
 char packetIsExpected = 0;
 
+/**
+ * Store a cache of what MAC address belongs to any MIP address.
+ * Format:
+ *      macCache[Mip Address] = Mac address.
+ *      If mac address is all 0's, assume it is unknown, since that mac is mostly used for loopback.
+ */
+//uint8_t macCache[256][7] = {0};
 
 /**
  * Add a file descriptor to the epoll.
@@ -47,15 +54,24 @@ int epoll_add(struct epoll_control *epctrl, int fd) {
  * No return value.
  */
 void epoll_event(struct epoll_control * epctrl, int n) {
-    //char buffer[MAX_FRAME_SIZE] = {0};
+    //char intBuffer[MAX_UX_MESSAGE_SIZE] = {0}; // Internal communications
+    char extBuffer[MAX_FRAME_SIZE] = {0}; // External communications
 
     if (epctrl->events[n].data.fd == epctrl->unix_fd) {
         // Message from unix socket.
     } else {
         if (!packetIsExpected) {
-            // If the packet is not expected.
+            ssize_t ret = recv(epctrl->events[n].data.fd, &extBuffer, MAX_FRAME_SIZE, 0);
+            if (ret == -1) {
+                perror("epoll_event: recv()");
+                exit (EXIT_SUCCESS);
+            }
+            debug_print("Unexpected packet received.");
+            debug_print_frame((struct ethernet_frame*)&extBuffer);
+        } else if (packetIsExpected == 1) {
+            // If ARP packet is expected.
         } else {
-            // If it is expected.
+            // If data packet is expected.
         }
     }
 }
@@ -72,9 +88,10 @@ int main(int argc, char * argv[]) {
 
     // Variables
     char* sockpath = {0};
-    struct eth_interface *interfaces;
-    char* myAddresses;
-    int startAddr = 0;
+    struct eth_interface *interfaces; // Store a linked list of all interfaces.
+    char hasAddr = 0; // Store whether or not this daemon has a MIP address at all.
+    char* myAddresses; // Store a list of all MIP addresses assigned to this daemon.
+    int startAddr = 0; // Used in loop.
 
     // Args parsing.
     int i;
@@ -92,6 +109,7 @@ int main(int argc, char * argv[]) {
             startAddr = i;
         } else {
             myAddresses[i - startAddr] = (char)atoi(argv[i]);
+            hasAddr = 1;
         }
     }
     if (!sockpath) {
@@ -106,9 +124,9 @@ int main(int argc, char * argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    if (unlink(sockpath) == -1) {
-        perror("main: unlink()");
-        printf("Daemon will continue, but UNIX socket will not be removed after completion.\n");
+    if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFL, 0) | O_NONBLOCK) == -1) {
+        perror("main: fcntl(setting socket nonblocking)");
+        exit(EXIT_FAILURE);
     }
 
     struct sockaddr_un sockaddr;
@@ -118,6 +136,11 @@ int main(int argc, char * argv[]) {
     if (bind(sock, (struct sockaddr *)&sockaddr, sizeof(sockaddr))) {
         perror("main: bind()");
         exit(EXIT_FAILURE);
+    }
+
+    if (unlink(sockpath) == -1) {
+        perror("main: unlink()");
+        printf("Daemon will continue, but UNIX socket will not be removed after completion.\n");
     }
 
     if (listen(sock, 100)) {
@@ -136,12 +159,6 @@ int main(int argc, char * argv[]) {
     }
 
     // Create sockets and save each network interface to a list.
-    sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-    if (sock == -1) {
-        perror("main: socket()");
-        exit(EXIT_FAILURE);
-    }
-
     struct ifaddrs * addrs, * tmp_addr;
     struct eth_interface * tmp_interface;
 
@@ -160,7 +177,18 @@ int main(int argc, char * argv[]) {
             tmp_interface->name = calloc(0, strlen(tmp_addr->ifa_name));
             strcpy(tmp_interface->name, tmp_addr->ifa_name);
 
-            // Bind socket.
+            // Create socket for the interface.
+            sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+            if (sock == -1) {
+                perror("main: socket()");
+                exit(EXIT_FAILURE);
+            }
+
+            if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFL, 0) | O_NONBLOCK) == -1) {
+                perror("main: fcntl(setting socket nonblocking)");
+                exit(EXIT_FAILURE);
+            }
+
             struct sockaddr_ll sockaddr_net;
             sockaddr_net.sll_family = AF_PACKET;
             sockaddr_net.sll_protocol = htons(ETH_P_ALL);
@@ -168,6 +196,12 @@ int main(int argc, char * argv[]) {
             if (bind(sock, (struct sockaddr*)&sockaddr_net, sizeof(sockaddr_net)) == -1) {
                 perror("main: bind(loop)");
                 exit(EXIT_FAILURE);
+            }
+
+            tmp_interface->has_mip_addr = 0;
+            if (hasAddr) {
+                tmp_interface->has_mip_addr = 1;
+                tmp_interface->mip_addr = myAddresses[0];
             }
 
             tmp_interface->sock = sock;
@@ -185,7 +219,8 @@ int main(int argc, char * argv[]) {
 
     printf("Ready to serve.");
 
-    for (;;) {
+    // Serve
+    while (1) {
         int nfds, n;
         nfds = epoll_wait(epctrl.epoll_fd, epctrl.events, MAX_EVENTS, -1);
         if (nfds == -1) {
@@ -202,8 +237,17 @@ int main(int argc, char * argv[]) {
         break;
     }
 
-    close(sock);
+    // Close unix socket.
     close(epctrl.unix_fd);
+
+    // Close eth sockets and clean up memory.
+    tmp_interface = interfaces;
+    while (interfaces) {
+        close(tmp_interface->sock);
+        free(tmp_interface->name);
+        interfaces = tmp_interface->next;
+        free(tmp_interface);
+    }
 
     return EXIT_SUCCESS;
 }

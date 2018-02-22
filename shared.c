@@ -1,6 +1,5 @@
 #include "shared.h"
 #include "mac_utils.h"
-#include "ethernet.h"
 
 #include <stdio.h>
 
@@ -38,6 +37,16 @@ void debug_print_frame(struct ethernet_frame * frame) {
     print_mac(frame->destination);
     printf("Protocol: %d\n", frame->protocol);
     printf("%s\n", frame->msg);
+}
+
+/**
+ * If debug printing is enabled; format and print a single message send over the unix socket.
+ */
+void debug_print_message(struct ux_message *msg) {
+    if (!setting_debug) return;
+
+    printf("Address (to or from): %d\n", msg->mip_addr);
+    printf("Message: %s\n", msg->msg);
 }
 
 //

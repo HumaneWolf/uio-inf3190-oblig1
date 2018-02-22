@@ -7,6 +7,8 @@ struct eth_interface {
     struct eth_interface *next;
     char* name;
     uint8_t mac[6];
+    char has_mip_addr;
+    char mip_addr;
     int sock;
 };
 

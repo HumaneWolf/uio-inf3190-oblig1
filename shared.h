@@ -1,23 +1,29 @@
 #ifndef _shared_h
 #define _shared_h
 
+#include "ethernet.h"
+
 #include <stdarg.h>
 #include <stdint.h>
 
 // Debug print functions
 void enable_debug_print();
 void debug_print(char *str, ...);
+void debug_print_frame(struct ethernet_frame * frame);
 
 
 // Sending messages over the UNIX socket.
 /**
  * Interface used to send messages over the UNIX socket between the daemon and the ping client/server.
  */
+#define MAX_UX_MESSAGE_SIZE 1497
+
 struct ux_message {
     uint8_t mip_addr; // Destination if sent to daemon. Source if sent from daemon.
-    uint32_t msgLength;
     char msg[];
 } __attribute__((packed));
+
+void debug_print_message(struct ux_message * msg);
 
 
 // MIP packet functions.
