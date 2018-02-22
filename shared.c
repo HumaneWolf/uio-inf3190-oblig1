@@ -76,8 +76,8 @@ uint8_t mip_is_arp(uint32_t *packetHeader) {
  * packetHeader - A pointer to the packet header.
  * output - The location to output the MIP address.
  */
-void mip_get_dest(uint32_t * packetHeader, uint8_t * output) {
-    *output = (uint8_t)((*packetHeader >> 21) & 0x000000FF);
+uint8_t mip_get_dest(uint32_t * packetHeader) {
+    return (uint8_t)((*packetHeader >> 21) & 0x000000FF);
 }
 
 /**
@@ -85,8 +85,8 @@ void mip_get_dest(uint32_t * packetHeader, uint8_t * output) {
  * packetHeader - A pointer to the packet header.
  * output - The location to output the MIP address.
  */
-void mip_get_src(uint32_t * packetHeader, uint8_t * output) {
-    *output = (uint8_t)((*packetHeader >> 13) & 0x000000FF);
+uint8_t mip_get_src(uint32_t * packetHeader) {
+    return (uint8_t)((*packetHeader >> 13) & 0x000000FF);
 }
 
 /**
@@ -94,8 +94,8 @@ void mip_get_src(uint32_t * packetHeader, uint8_t * output) {
  * packetHeader - A pointer to the packet header.
  * output - The location to output the length, in number of bytes.
  */
-void mip_get_payload_length(uint32_t * packetHeader, uint32_t * output) {
-    *output = ((*packetHeader >> 4) & 0x000001FF) * 4;
+uint32_t mip_get_payload_length(uint32_t * packetHeader) {
+    return ((*packetHeader >> 4) & 0x000001FF) * 4;
 }
 
 /**

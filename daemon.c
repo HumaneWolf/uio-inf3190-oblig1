@@ -103,6 +103,8 @@ void epoll_event(struct epoll_control * epctrl, int n) {
         }
 
         if (isMipKnown) {
+            packetIsExpected = 2;
+
             struct eth_interface * tmp_interface = interfaces;
             while (tmp_interface) {
                 struct ethernet_frame * eth_frame = (struct ethernet_frame*)&extBuffer;
@@ -123,20 +125,89 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                 tmp_interface = tmp_interface->next;
             }
         } else {
-            // Ask for mac addr.
+            // Store the message we intend to send in the buffer.
+            memcpy(arpBuffer, intBuffer, MAX_PAYLOAD_SIZE);
+            destinationMip = mip_addr;
+            packetIsExpected = 1;
+
+            // Send ARP requests.
+            struct eth_interface * tmp_interface = interfaces;
+            while (tmp_interface) {
+                struct ethernet_frame * eth_frame = (struct ethernet_frame*)&extBuffer;
+
+                memset(eth_frame->destination, 0xFF, 6);
+                memcpy(eth_frame->source, tmp_interface->mac, 6);
+                eth_frame->protocol = ETH_P_MIP;
+
+                mip_build_header(0, 0, 1, mip_addr, tmp_interface->mip_addr, 0, (uint32_t*)(eth_frame->msg));
+
+                if (send(tmp_interface->sock, &extBuffer, sizeof(extBuffer), 0) == -1) {
+                    perror("epoll_event: send()");
+                    exit(EXIT_FAILURE);
+                }
+
+                printf("ARP frame sent:\n");
+                debug_print_frame(eth_frame);
+
+                tmp_interface = tmp_interface->next;
+            }
         }
     } else {
-        if (!packetIsExpected) {
-            if (recv(epctrl->events[n].data.fd, &extBuffer, MAX_PACKET_SIZE, 0) == -1) {
-                perror("epoll_event: recv()");
-                exit(EXIT_FAILURE);
+        if (recv(epctrl->events[n].data.fd, &extBuffer, sizeof(extBuffer), 0) == -1) {
+            perror("epoll_event: recv()");
+            exit(EXIT_FAILURE);
+        }
+        struct ethernet_frame *eth_frame = (struct ethernet_frame *)&extBuffer; // Store eth frame in buffer.
+
+        if (!packetIsExpected) { // If no packets are expected.
+            if (mip_is_arp((uint32_t*)&(eth_frame->msg))) { //If ARP packet.
+                char isMe = 0;
+                struct eth_interface * tmp_interface = interfaces;
+                while (tmp_interface) {
+                    if (mip_get_dest((uint32_t *)&(eth_frame->msg)) == tmp_interface->mip_addr) {
+                        isMe = 1;
+                        break;
+                    }
+                }
+                if (isMe) {
+                    uint32_t arpResponseBuffer = 0;
+                    mip_build_header(
+                        0, 0, 0,
+                        mip_get_src((uint32_t *)&(eth_frame->msg)),
+                        mip_get_dest((uint32_t *)&(eth_frame->msg)),
+                        0, &arpResponseBuffer);
+                    if (send(epctrl->events[n].data.fd, &arpResponseBuffer, sizeof(arpResponseBuffer), 0) == -1) {
+                        perror("epoll_event: send()");
+                        exit(EXIT_FAILURE);
+                    }
+
+                    memcpy(macCache[mip_get_src((uint32_t *)&(eth_frame->msg))], eth_frame->source, 6);
+                }
+            } else { // If not ARP packet.
+                debug_print("Unexpected packet received.");
+                debug_print_frame((struct ethernet_frame*)&extBuffer);
             }
-            debug_print("Unexpected packet received.");
-            debug_print_frame((struct ethernet_frame*)&extBuffer);
-        } else if (packetIsExpected == 1) {
-            // If ARP packet is expected.
-        } else {
-            // If data packet is expected.
+        } else if (packetIsExpected == 1) { // If ARP response packet is expected.
+            memcpy(macCache[mip_get_src((uint32_t *)&(eth_frame->msg))], eth_frame->source, 6);
+            
+            struct eth_interface * tmp_interface = interfaces;
+            while (tmp_interface) {
+                memcpy(eth_frame->destination, macCache[mip_addr], 6);
+                memcpy(eth_frame->source, tmp_interface->mac, 6);
+                eth_frame->protocol = ETH_P_MIP;
+
+                mip_build_header(1, 0, 0, destinationMip, tmp_interface->mip_addr, MAX_PAYLOAD_SIZE, (uint32_t*)(eth_frame->msg));
+
+                memcpy((char*)(&eth_frame->msg[4]), arpBuffer, MAX_PAYLOAD_SIZE);
+
+                send(tmp_interface->sock, &extBuffer, sizeof(extBuffer), 0);
+
+                printf("Frame sent:\n");
+                debug_print_frame(eth_frame);
+            }
+              
+        } else { // If data packet is expected.
+            // TODO!
         }
     }
 }

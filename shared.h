@@ -16,9 +16,9 @@ void debug_print_frame(struct ethernet_frame * frame);
 uint8_t mip_is_transport(uint32_t * packetHeader);
 uint8_t mip_is_routing(uint32_t *packetHeader);
 uint8_t mip_is_arp(uint32_t *packetHeader);
-void mip_get_dest(uint32_t *packetHeader, uint8_t *output);
-void mip_get_src(uint32_t *packetHeader, uint8_t *output);
-void mip_get_payload_length(uint32_t *packetHeader, uint32_t *output);
+uint8_t mip_get_dest(uint32_t *packetHeader);
+uint8_t mip_get_src(uint32_t *packetHeader);
+uint32_t mip_get_payload_length(uint32_t *packetHeader);
 
 void mip_build_header(
     uint8_t isTransport,
