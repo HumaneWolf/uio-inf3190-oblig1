@@ -20,7 +20,7 @@
 /**
  * Store whether or not the daemon is expecting a packet now or not.
  */
-char packetIsExpected = 0;
+enum packet_waiting_status packetIsExpected = NOT_WAITING;
 
 /**
  * Store the payload we are gonna send after receiving the mac address of an ARP lookup.
@@ -71,27 +71,40 @@ int epoll_add(struct epoll_control *epctrl, int fd) {
  */
 void epoll_event(struct epoll_control * epctrl, int n) {
     unsigned char mip_addr = 0; // Mip address storage, for sendmsg and recvmsg.
-    char intBuffer[MAX_PAYLOAD_SIZE] = {0}; // Internal communications buffer
+    enum error errBuffer = 0; // To store and send errors between processes.
+    char intBuffer[MAX_PACKET_SIZE] = {0}; // Internal communications buffer
     char extBuffer[MAX_PACKET_SIZE + sizeof(struct ethernet_frame)] = {0}; // External communications buffer
-
-    // Create the iov and msghdr structs here - Since we use them for a lot of different options.
-    // They define where recvmsg and sendmsg should fetch info from or store information, for our IPC.
-    struct iovec iov[2];
-    iov[0].iov_base = &intBuffer;
-    iov[0].iov_len = MAX_PAYLOAD_SIZE;
-
-    iov[0].iov_base = &mip_addr;
-    iov[0].iov_len = sizeof(mip_addr);
-
-    struct msghdr message = {0};
-    message.msg_iov = iov;
-    message.msg_iovlen = 2;
 
     // Packet/frame/event type decision tree.
     if (epctrl->events[n].data.fd == epctrl->unix_fd) {
+
+        // Creating the iov and msghdr structs for receiving here.
+        struct iovec iov[2];
+        iov[0].iov_base = &intBuffer;
+        iov[0].iov_len = MAX_PACKET_SIZE;
+
+        iov[1].iov_base = &mip_addr;
+        iov[1].iov_len = sizeof(mip_addr);
+
+        iov[2].iov_base = &errBuffer;
+        iov[2].iov_len = sizeof(errBuffer);
+
+        struct msghdr message = {0};
+        message.msg_iov = iov;
+        message.msg_iovlen = 3;
+
         if (recvmsg(epctrl->events[n].data.fd, &message, 0) == -1) {
             perror("epoll_event: recvmsg()");
             exit(EXIT_FAILURE);
+        }
+
+        if (strlen(intBuffer) > MAX_PAYLOAD_SIZE) {
+            errBuffer = TOO_LONG_PAYLOAD;
+            if (recvmsg(epctrl->events[n].data.fd, &message, 0) == -1) {
+                perror("epoll_event: recvmsg()");
+                exit(EXIT_FAILURE);
+            }
+            return;
         }
         
         char isMipKnown = 0; // Used to store whether the mip is known after checking the cache.
@@ -103,7 +116,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
         }
 
         if (isMipKnown) {
-            packetIsExpected = 2;
+            packetIsExpected = WAITING_DATA;
 
             struct eth_interface * tmp_interface = interfaces;
             while (tmp_interface) {
@@ -113,7 +126,13 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                 memcpy(eth_frame->source, tmp_interface->mac, 6);
                 eth_frame->protocol = ETH_P_MIP;
 
-                mip_build_header(1, 0, 0, mip_addr, tmp_interface->mip_addr, MAX_PAYLOAD_SIZE, (uint32_t*)(eth_frame->msg));
+                mip_build_header(
+                    1, 0, 0,
+                    mip_addr,
+                    tmp_interface->mip_addr,
+                    strlen(intBuffer),
+                    (uint32_t*)(eth_frame->msg)
+                );
 
                 memcpy((char*)(&eth_frame->msg[4]), &intBuffer, MAX_PAYLOAD_SIZE);
 
@@ -128,7 +147,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
             // Store the message we intend to send in the buffer.
             memcpy(arpBuffer, intBuffer, MAX_PAYLOAD_SIZE);
             destinationMip = mip_addr;
-            packetIsExpected = 1;
+            packetIsExpected = WAITING_ARP;
 
             // Send ARP requests.
             struct eth_interface * tmp_interface = interfaces;
@@ -159,7 +178,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
         }
         struct ethernet_frame *eth_frame = (struct ethernet_frame *)&extBuffer; // Store eth frame in buffer.
 
-        if (!packetIsExpected) { // If no packets are expected.
+        if (packetIsExpected == NOT_WAITING) { // If no packets are expected.
             if (mip_is_arp((uint32_t*)&(eth_frame->msg))) { //If ARP packet.
                 char isMe = 0;
                 struct eth_interface * tmp_interface = interfaces;
@@ -187,7 +206,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                 debug_print("Unexpected packet received.");
                 debug_print_frame((struct ethernet_frame*)&extBuffer);
             }
-        } else if (packetIsExpected == 1) { // If ARP response packet is expected.
+        } else if (packetIsExpected == WAITING_ARP) { // If ARP response packet is expected.
             memcpy(macCache[mip_get_src((uint32_t *)&(eth_frame->msg))], eth_frame->source, 6);
             
             struct eth_interface * tmp_interface = interfaces;
@@ -202,11 +221,28 @@ void epoll_event(struct epoll_control * epctrl, int n) {
 
                 send(tmp_interface->sock, &extBuffer, sizeof(extBuffer), 0);
 
-                printf("Frame sent:\n");
+                debug_print("Frame sent:\n");
                 debug_print_frame(eth_frame);
             }
               
         } else { // If data packet is expected.
+
+            // Creating the iov and msghdr structs for sending data back here.
+            struct iovec iov[2];
+            iov[0].iov_base = &intBuffer;
+            iov[0].iov_len = MAX_PAYLOAD_SIZE;
+
+            iov[1].iov_base = &mip_addr;
+            iov[1].iov_len = sizeof(mip_addr);
+
+            iov[2].iov_base = &errBuffer;
+            iov[2].iov_len = sizeof(errBuffer);
+
+            struct msghdr message = {0};
+            message.msg_iov = iov;
+            message.msg_iovlen = 3;
+
+            errBuffer = NO_ERROR;
             mip_addr = mip_get_src((uint32_t *)&(eth_frame->msg));
             memcpy(intBuffer, (char *)(&eth_frame->msg[4]), MAX_PAYLOAD_SIZE);
 

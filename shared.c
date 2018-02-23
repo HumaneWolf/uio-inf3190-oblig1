@@ -2,6 +2,7 @@
 #include "mac_utils.h"
 
 #include <stdio.h>
+#include <math.h>
 
 char setting_debug = 0;
 
@@ -141,7 +142,7 @@ void mip_build_header(
 
     result = (result | source) << 9; // Source MIP addr.
 
-    result = (result | (payloadLength / 4)) << 4; // Payload Length.
+    result = (result | (uint8_t)ceilf((payloadLength / 4))) << 4; // Payload Length.
 
     result = result | 15; // TTL.
 
