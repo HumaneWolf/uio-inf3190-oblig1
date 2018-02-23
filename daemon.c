@@ -146,7 +146,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                     exit(EXIT_FAILURE);
                 }
 
-                printf("ARP frame sent:\n");
+                debug_print("ARP frame sent:\n");
                 debug_print_frame(eth_frame);
 
                 tmp_interface = tmp_interface->next;
@@ -207,7 +207,13 @@ void epoll_event(struct epoll_control * epctrl, int n) {
             }
               
         } else { // If data packet is expected.
-            // TODO!
+            mip_addr = mip_get_src((uint32_t *)&(eth_frame->msg));
+            memcpy(intBuffer, (char *)(&eth_frame->msg[4]), MAX_PAYLOAD_SIZE);
+
+            if (sendmsg(epctrl->unix_fd, &message, 0) == -1) {
+                perror("epoll_event: senmsg()");
+                exit(EXIT_FAILURE);
+            }
         }
     }
 }
@@ -346,7 +352,7 @@ int main(int argc, char * argv[]) {
 
             tmp_addrNum++; // Increase by one.
 
-            debug_print("%s added.\n", tmp_addr->ifa_name);
+            debug_print("%s added with MIP addr %u.\n", tmp_addr->ifa_name, tmp_interface->mip_addr);
         }
 
         tmp_addr = tmp_addr->ifa_next;
