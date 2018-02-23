@@ -215,7 +215,12 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                 memcpy(eth_frame->source, tmp_interface->mac, 6);
                 eth_frame->protocol = ETH_P_MIP;
 
-                mip_build_header(1, 0, 0, destinationMip, tmp_interface->mip_addr, MAX_PAYLOAD_SIZE, (uint32_t*)(eth_frame->msg));
+                mip_build_header(
+                    1, 0, 0,
+                    destinationMip,
+                    tmp_interface->mip_addr,
+                    MAX_PAYLOAD_SIZE, (uint32_t*)(eth_frame->msg)
+                );
 
                 memcpy((char*)(&eth_frame->msg[4]), arpBuffer, MAX_PAYLOAD_SIZE);
 
