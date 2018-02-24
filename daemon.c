@@ -150,7 +150,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
 
                     memcpy(eth_frame->destination, macCache[mip_addr], 6);
                     memcpy(eth_frame->source, tmp_interface->mac, 6);
-                    eth_frame->protocol = ETH_P_MIP;
+                    eth_frame->protocol = htons(ETH_P_MIP);
 
                     mip_build_header(
                         1, 0, 0,
@@ -184,7 +184,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
 
                     memset(eth_frame->destination, 0xFF, 6);
                     memcpy(eth_frame->source, tmp_interface->mac, 6);
-                    eth_frame->protocol = ETH_P_MIP;
+                    eth_frame->protocol = htons(ETH_P_MIP);
 
                     mip_build_header(0, 0, 1, mip_addr, tmp_interface->mip_addr, 0, (uint32_t*)(eth_frame->msg));
 
@@ -193,7 +193,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                         exit(EXIT_FAILURE);
                     }
 
-                    debug_print("ARP frame sent:\n");
+                    debug_print("ARP frame sent on %s from %u:\n", tmp_interface->name, tmp_interface->mip_addr);
                     debug_print_frame(eth_frame);
 
                     tmp_interface = tmp_interface->next;
@@ -207,6 +207,9 @@ void epoll_event(struct epoll_control * epctrl, int n) {
         }
         struct ethernet_frame *eth_frame = (struct ethernet_frame *)&extBuffer; // Store eth frame in buffer.
         memcpy(macCache[mip_get_src((uint32_t *)&(eth_frame->msg))], eth_frame->source, 6); // Store source MIP in cache.
+
+        // Dump incoming frame.
+        debug_print_frame(eth_frame);
 
         if (packetIsExpected == NOT_WAITING) { // If no packets are expected.
             if (mip_is_arp((uint32_t*)&(eth_frame->msg))) { //If ARP packet.
@@ -241,7 +244,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
             while (tmp_interface) {
                 memcpy(eth_frame->destination, macCache[mip_addr], 6);
                 memcpy(eth_frame->source, tmp_interface->mac, 6);
-                eth_frame->protocol = ETH_P_MIP;
+                eth_frame->protocol = htons(ETH_P_MIP);
 
                 mip_build_header(
                     1, 0, 0,
@@ -373,7 +376,7 @@ int main(int argc, char * argv[]) {
     // Tell the system to unlink it when the program is done.
     if (unlink(sockpath) == -1) {
         perror("main: unlink()");
-        printf("Daemon will continue, but UNIX socket will not be removed after completion.\n");
+        printf("Daemon will continue, but UNIX socket may not be removed after completion.\n");
     }
 
     if (bind(sock, (struct sockaddr *)&sockaddr, sizeof(sockaddr))) {
@@ -439,7 +442,7 @@ int main(int argc, char * argv[]) {
 
             struct sockaddr_ll sockaddr_net;
             sockaddr_net.sll_family = AF_PACKET;
-            sockaddr_net.sll_protocol = htons(ETH_P_MIP);
+            sockaddr_net.sll_protocol = htons(ETH_P_ALL);
             sockaddr_net.sll_ifindex = if_nametoindex(tmp_addr->ifa_name);
             if (bind(sock, (struct sockaddr*)&sockaddr_net, sizeof(sockaddr_net)) == -1) {
                 perror("main: bind(loop)");
@@ -453,6 +456,8 @@ int main(int argc, char * argv[]) {
 
             tmp_interface->next = interfaces;
             interfaces = tmp_interface;
+
+            epoll_add(&epctrl, sock);
 
             tmp_addrNum++; // Increase by one.
 
@@ -488,7 +493,7 @@ int main(int argc, char * argv[]) {
             // Defining the necessary variables to send back to the UNIX socket client.
             char intBuffer = {0};
             char mip_addr = 0;
-            enum info errBuffer = TIMED_OUT;
+            enum info infoBuffer = TIMED_OUT;
 
             packetIsExpected = NOT_WAITING;
 
@@ -499,15 +504,15 @@ int main(int argc, char * argv[]) {
             iov[1].iov_base = &mip_addr;
             iov[1].iov_len = sizeof(mip_addr);
 
-            iov[2].iov_base = &errBuffer;
-            iov[2].iov_len = sizeof(errBuffer);
+            iov[2].iov_base = &infoBuffer;
+            iov[2].iov_len = sizeof(infoBuffer);
 
             struct msghdr message = {0};
             message.msg_iov = iov;
             message.msg_iovlen = 3;
 
             if (sendmsg(epctrl.unix_fd, &message, 0) == -1) {
-                perror("epoll_event: sendmsg()");
+                perror("main: sendmsg()");
                 exit(EXIT_FAILURE);
             }
 

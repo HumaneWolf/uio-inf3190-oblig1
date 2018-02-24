@@ -1,6 +1,7 @@
 #include "debug.h"
 #include "mac_utils.h"
 
+#include <arpa/inet.h>
 #include <stdio.h>
 
 char setting_debug = 0;
@@ -35,7 +36,7 @@ void debug_print_frame(struct ethernet_frame * frame) {
     print_mac(frame->source);
     printf("Destination:\n");
     print_mac(frame->destination);
-    printf("Protocol: %d\n", frame->protocol);
+    printf("Protocol: %d\n", ntohs(frame->protocol));
     printf("%s\n", frame->msg);
 }
 

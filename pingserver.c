@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <unistd.h>
 
 int main(int argc, char* argv[]) {
     if (argc <= 1) { //Not enough args
@@ -98,4 +99,6 @@ int main(int argc, char* argv[]) {
             exit(EXIT_FAILURE);
         }
     }
+
+    close(sock);
 }
