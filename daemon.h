@@ -7,9 +7,10 @@
  * An enum object to store the status of the daemon at this moment.
  */
 enum packet_waiting_status {
-    NOT_WAITING = 0,
-    WAITING_ARP = 1,
-    WAITING_DATA = 2
+    NOT_WAITING = 0, // Not awaiting any packet.
+    WAITING_ARP = 1, // Awaiting a single ARP response packet.
+    WAITING_DATA = 2, // Awaiting a single data response packet.
+    LISTENING = 3 // Listening to packets as a server.
 };
 
 
