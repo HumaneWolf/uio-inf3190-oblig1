@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+/**
+ * Ethernet protocol number.
+ */
+#define ETH_P_MIP 0x88B5
+
 // MIP packet functions.
 uint8_t mip_is_transport(uint32_t *packetHeader);
 uint8_t mip_is_routing(uint32_t *packetHeader);

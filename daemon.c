@@ -80,7 +80,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
     if (epctrl->events[n].data.fd == epctrl->unix_fd) {
 
         // Creating the iov and msghdr structs for receiving here.
-        struct iovec iov[2];
+        struct iovec iov[3];
         iov[0].iov_base = &intBuffer;
         iov[0].iov_len = MAX_PACKET_SIZE;
 
@@ -101,8 +101,8 @@ void epoll_event(struct epoll_control * epctrl, int n) {
 
         if (strlen(intBuffer) > MAX_PAYLOAD_SIZE) {
             errBuffer = TOO_LONG_PAYLOAD;
-            if (recvmsg(epctrl->events[n].data.fd, &message, 0) == -1) {
-                perror("epoll_event: recvmsg()");
+            if (sendmsg(epctrl->events[n].data.fd, &message, 0) == -1) {
+                perror("epoll_event: sendmsg()");
                 exit(EXIT_FAILURE);
             }
             return;
@@ -230,11 +230,14 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                 debug_print("Frame sent:\n");
                 debug_print_frame(eth_frame);
             }
+
+            // Update status
+            packetIsExpected = WAITING_DATA;
               
         } else { // If data packet is expected.
 
             // Creating the iov and msghdr structs for sending data back here.
-            struct iovec iov[2];
+            struct iovec iov[3];
             iov[0].iov_base = &intBuffer;
             iov[0].iov_len = MAX_PAYLOAD_SIZE;
 
@@ -256,6 +259,12 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                 perror("epoll_event: senmsg()");
                 exit(EXIT_FAILURE);
             }
+
+            debug_print("Received frame:");
+            debug_print_frame(eth_frame);
+
+            // Update status
+            packetIsExpected = NOT_WAITING;
         }
     }
 }
@@ -403,10 +412,11 @@ int main(int argc, char * argv[]) {
 
     printf("Ready to serve.");
 
-    // Serve
+    // Serve. The epoll_wait timeout makes this a "pulse" loop, meaning all periodic updates in the daemon
+    // can be done from here.
     while (1) {
         int nfds, n;
-        nfds = epoll_wait(epctrl.epoll_fd, epctrl.events, MAX_EVENTS, -1);
+        nfds = epoll_wait(epctrl.epoll_fd, epctrl.events, MAX_EVENTS, 1000); // Max waiting time = 1 sec.
         if (nfds == -1) {
             perror("main: epoll_wait()");
             exit(EXIT_FAILURE);
@@ -418,7 +428,38 @@ int main(int argc, char * argv[]) {
             // Handle event.
             epoll_event(&epctrl, n);
         }
-        break;
+
+        // Time out.
+        if (packetIsExpected == WAITING_ARP || packetIsExpected == WAITING_DATA) {
+            // Defining the necessary variables to send back to the UNIX socket client.
+            char intBuffer = {0};
+            char mip_addr = 0;
+            enum error errBuffer = TIMED_OUT;
+
+            packetIsExpected = NOT_WAITING;
+
+            struct iovec iov[3];
+            iov[0].iov_base = &intBuffer;
+            iov[0].iov_len = MAX_PACKET_SIZE;
+
+            iov[1].iov_base = &mip_addr;
+            iov[1].iov_len = sizeof(mip_addr);
+
+            iov[2].iov_base = &errBuffer;
+            iov[2].iov_len = sizeof(errBuffer);
+
+            struct msghdr message = {0};
+            message.msg_iov = iov;
+            message.msg_iovlen = 3;
+
+            if (sendmsg(epctrl.unix_fd, &message, 0) == -1) {
+                perror("epoll_event: sendmsg()");
+                exit(EXIT_FAILURE);
+            }
+
+            debug_print("Connection timed out.");
+        }
+        debug_print("Epoll timed out, 1s pulse loop done.");
     }
 
     // Close unix socket.

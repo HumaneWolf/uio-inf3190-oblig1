@@ -8,7 +8,8 @@
 // Types of error we can send.
 enum error {
     NO_ERROR = 0,
-    TOO_LONG_PAYLOAD = 1
+    TOO_LONG_PAYLOAD = 1,
+    TIMED_OUT = 2
 };
 
 // Debug print functions

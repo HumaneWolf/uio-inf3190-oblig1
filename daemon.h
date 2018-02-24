@@ -24,7 +24,7 @@ struct eth_interface {
     int sock;
 };
 
-#define MAX_EVENTS 15
+#define MAX_EVENTS 20
 /**
  * EPOLL control structure.
  */
