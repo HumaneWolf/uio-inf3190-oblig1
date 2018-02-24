@@ -2,6 +2,7 @@
 #include "ethernet.h"
 #include "shared.h"
 #include "mac_utils.h"
+#include "mip.h"
 
 #include <arpa/inet.h>
 #include <net/if.h>
