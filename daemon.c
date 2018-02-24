@@ -3,11 +3,11 @@
 #include "shared.h"
 #include "mac_utils.h"
 #include "mip.h"
+#include "debug.h"
 
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <sys/types.h>
-#include <sys/socket.h>
 #include <sys/un.h>
 #include <linux/if_packet.h>
 #include <net/ethernet.h>
@@ -76,9 +76,27 @@ void epoll_event(struct epoll_control * epctrl, int n) {
     char intBuffer[MAX_PACKET_SIZE] = {0}; // Internal communications buffer
     char extBuffer[MAX_PACKET_SIZE + sizeof(struct ethernet_frame)] = {0}; // External communications buffer
 
-    // Packet/frame/event type decision tree.
-    if (epctrl->events[n].data.fd == epctrl->unix_fd) {
+    if (epctrl->events[n].data.fd == epctrl->sock_fd) { // If the incoming event is creating a socket connection.
+        if (epctrl->unix_fd && epctrl->unix_fd != -1) {
+            close(epctrl->unix_fd);
+        }
 
+        // Accept connection.
+        epctrl->unix_fd = accept(epctrl->sock_fd, &(epctrl->sockaddr), &(epctrl->sockaddrlen));
+        if (epctrl->unix_fd == -1) {
+            perror("epoll_event: accept()");
+            exit(EXIT_FAILURE);
+        }
+
+        // Update the event so the rest of the decision making ends up correct.
+        epctrl->events[n].data.fd = epctrl->unix_fd;
+
+        // Add to epoll.
+        epoll_add(epctrl, epctrl->unix_fd);
+    }
+
+    // Packet/frame/event type decision tree.
+    if (epctrl->events[n].data.fd == epctrl->unix_fd) { // If the incoming event is on the established socket.
         // Creating the iov and msghdr structs for receiving here.
         struct iovec iov[3];
         iov[0].iov_base = &intBuffer;
@@ -101,6 +119,10 @@ void epoll_event(struct epoll_control * epctrl, int n) {
 
         if (infoBuffer == LISTEN) { // If we are just gonna listen as a server.
             packetIsExpected = LISTENING;
+            debug_print("Now listening to incoming connections.\n");
+        } else if (infoBuffer == RESET) {
+            packetIsExpected = NOT_WAITING;
+            debug_print("Daemon has been reset, no longer listening.\n");
         } else { // If we are gonna send a message.
             if (strlen(intBuffer) > MAX_PAYLOAD_SIZE) {
                 infoBuffer = TOO_LONG_PAYLOAD;
@@ -148,7 +170,9 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                     tmp_interface = tmp_interface->next;
                 }
             } else {
+                debug_print("Unknown MIP. Running arp.\n");
                 // Store the message we intend to send in the buffer.
+                memset(arpBuffer, 0, MAX_PAYLOAD_SIZE);
                 memcpy(arpBuffer, intBuffer, MAX_PAYLOAD_SIZE);
                 destinationMip = mip_addr;
                 packetIsExpected = WAITING_ARP;
@@ -182,6 +206,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
             exit(EXIT_FAILURE);
         }
         struct ethernet_frame *eth_frame = (struct ethernet_frame *)&extBuffer; // Store eth frame in buffer.
+        memcpy(macCache[mip_get_src((uint32_t *)&(eth_frame->msg))], eth_frame->source, 6); // Store source MIP in cache.
 
         if (packetIsExpected == NOT_WAITING) { // If no packets are expected.
             if (mip_is_arp((uint32_t*)&(eth_frame->msg))) { //If ARP packet.
@@ -211,9 +236,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                 debug_print("Unexpected packet received.");
                 debug_print_frame((struct ethernet_frame*)&extBuffer);
             }
-        } else if (packetIsExpected == WAITING_ARP) { // If ARP response packet is expected.
-            memcpy(macCache[mip_get_src((uint32_t *)&(eth_frame->msg))], eth_frame->source, 6);
-            
+        } else if (packetIsExpected == WAITING_ARP) { // If ARP response packet is expected.            
             struct eth_interface * tmp_interface = interfaces;
             while (tmp_interface) {
                 memcpy(eth_frame->destination, macCache[mip_addr], 6);
@@ -310,7 +333,9 @@ int main(int argc, char * argv[]) {
     int i;
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-h")) {
-            printf("Help\n");
+            printf("Syntax: %s [-h] [-d] <unix_socket> [MIP addresses]\n", argv[0]);
+            printf("-h: Show help and exit.\n");
+            printf("-d: Debug mode.\n");
             exit(EXIT_SUCCESS);
         } else if (!strcmp(argv[i], "-d")) {
             enable_debug_print();
@@ -345,14 +370,15 @@ int main(int argc, char * argv[]) {
     sockaddr.sun_family = AF_UNIX;
     strcpy(sockaddr.sun_path, sockpath);
 
-    if (bind(sock, (struct sockaddr *)&sockaddr, sizeof(sockaddr))) {
-        perror("main: bind()");
-        exit(EXIT_FAILURE);
-    }
-
+    // Tell the system to unlink it when the program is done.
     if (unlink(sockpath) == -1) {
         perror("main: unlink()");
         printf("Daemon will continue, but UNIX socket will not be removed after completion.\n");
+    }
+
+    if (bind(sock, (struct sockaddr *)&sockaddr, sizeof(sockaddr))) {
+        perror("main: bind()");
+        exit(EXIT_FAILURE);
     }
 
     if (listen(sock, 100)) {
@@ -362,8 +388,12 @@ int main(int argc, char * argv[]) {
 
     // Create EPOLL.
     struct epoll_control epctrl;
-    epctrl.unix_fd = sock;
+    epctrl.sock_fd = sock;
+    epctrl.sockaddrlen = sizeof(sockaddr);
+    memcpy(&(epctrl.sockaddr), &sockaddr, sizeof(sockaddr));
     epctrl.epoll_fd = epoll_create(10);
+
+    epoll_add(&epctrl, epctrl.sock_fd);
 
     if (epctrl.epoll_fd == -1) {
         perror("main: epoll_create()");
@@ -433,7 +463,7 @@ int main(int argc, char * argv[]) {
     }
     freeifaddrs(addrs);
 
-    printf("Ready to serve.");
+    printf("Ready to serve.\n");
 
     // Serve. The epoll_wait timeout makes this a "pulse" loop, meaning all periodic updates in the daemon
     // can be done from here.
@@ -445,15 +475,16 @@ int main(int argc, char * argv[]) {
             exit(EXIT_FAILURE);
         }
 
-        debug_print("Handling connection: %d\n", nfds);
-
         for (n = 0; n < nfds; n++) {
             // Handle event.
             epoll_event(&epctrl, n);
         }
 
-        // Time out.
-        if (packetIsExpected == WAITING_ARP || packetIsExpected == WAITING_DATA) {
+        // Time out. If the daemon is waiting, not serving, and no events happened.
+        if (
+            (packetIsExpected == WAITING_ARP || packetIsExpected == WAITING_DATA)
+            && nfds == 0
+        ) {
             // Defining the necessary variables to send back to the UNIX socket client.
             char intBuffer = {0};
             char mip_addr = 0;
@@ -480,13 +511,14 @@ int main(int argc, char * argv[]) {
                 exit(EXIT_FAILURE);
             }
 
-            debug_print("Connection timed out.");
+            debug_print("Connection timed out.\n");
         }
-        debug_print("Epoll timed out, 1s pulse loop done.");
+        debug_print("Epoll timed out, 1s pulse loop done, events: %d\n", nfds);
     }
 
     // Close unix socket.
     close(epctrl.unix_fd);
+    close(epctrl.sock_fd);
 
     // Close eth sockets and clean up memory.
     tmp_interface = interfaces;

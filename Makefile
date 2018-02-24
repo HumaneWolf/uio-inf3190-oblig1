@@ -4,7 +4,7 @@ POSTFLAGS = -lm
 
 SERVERFILES = pingserver.c
 CLIENTFILES = pingclient.c
-DAEMONFILES = daemon.c shared.c mac_utils.c mip.c
+DAEMONFILES = daemon.c mac_utils.c mip.c debug.c
 
 CLEANFILES = bin/ping_client bin/ping_server bin/mip_daemon
 

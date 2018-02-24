@@ -2,6 +2,7 @@
 #define _daemon_h
 
 #include <sys/epoll.h>
+#include <sys/socket.h>
 
 /**
  * An enum object to store the status of the daemon at this moment.
@@ -30,8 +31,11 @@ struct eth_interface {
  * EPOLL control structure.
  */
 struct epoll_control {
-    int epoll_fd;
-    int unix_fd;
+    int epoll_fd; // The file descriptor for the epoll.
+    int sock_fd; // The file descriptor for the socket the ping server/client connects to.
+    int unix_fd; // The file descriptor for the socket created when the ping server/client connects.
+    socklen_t sockaddrlen; // Address length for sockaddr struct.
+    struct sockaddr sockaddr; // Socket address struct for unix socket.
     struct epoll_event events[MAX_EVENTS];
 };
 
