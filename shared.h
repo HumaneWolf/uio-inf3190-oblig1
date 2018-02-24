@@ -7,7 +7,8 @@ enum info {
     TOO_LONG_PAYLOAD = 1, // Error: The included payload is too long.
     TIMED_OUT = 2, // Error: The quest timed out.
     LISTEN = 3, // Action: Listen to any incoming packets and send them to me.
-    RESET = 4 // Action: Reset, stop listening.
+    RESET = 4, // Action: Reset, stop listening.
+    NO_RESPONSE // Do not expect a response after sending this payload.
 };
 
 #endif

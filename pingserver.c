@@ -83,7 +83,7 @@ int main(int argc, char* argv[]) {
         buffer[3] = 'g';
         buffer[4] = '!';
         buffer[5] = '\0';
-        infoBuffer = NO_ERROR;
+        infoBuffer = NO_RESPONSE;
 
         // Send it.
         if (sendmsg(sock, &message, 0) == -1) {
@@ -92,12 +92,14 @@ int main(int argc, char* argv[]) {
         }
 
         // Tell the daemon to listen again.
+        /*
         infoBuffer = LISTEN;
         memset(&buffer, 0, MAX_PAYLOAD_SIZE);
         if (sendmsg(sock, &message, 0) == -1) {
             perror("sendmsg()");
             exit(EXIT_FAILURE);
         }
+        */
     }
 
     close(sock);
