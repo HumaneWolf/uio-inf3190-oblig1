@@ -82,11 +82,10 @@ int main(int argc, char* argv[]) {
         // Prepare to send a pong back.
         memset(&buffer, 0, MAX_PAYLOAD_SIZE);
         buffer[0] = 'P';
-        buffer[1] = 'o';
-        buffer[2] = 'n';
-        buffer[3] = 'g';
-        buffer[4] = '!';
-        buffer[5] = '\0';
+        buffer[1] = 'O';
+        buffer[2] = 'N';
+        buffer[3] = 'G';
+        buffer[4] = '\0';
         infoBuffer = NO_RESPONSE;
 
         // Send it.
