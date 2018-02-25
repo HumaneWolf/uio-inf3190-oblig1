@@ -8,19 +8,19 @@
  * An enum object to store the status of the daemon at this moment.
  */
 enum packet_waiting_status {
-    NOT_WAITING = 0, // Not awaiting any packet.
-    WAITING_ARP = 1, // Awaiting a single ARP response packet.
-    WAITING_DATA = 2, // Awaiting a single data response packet.
-    LISTENING = 3 // Listening to packets as a server.
+    NOT_WAITING         = 0, // Not awaiting any packet.
+    WAITING_ARP         = 1, // Awaiting a single ARP response packet.
+    WAITING_DATA        = 2, // Awaiting a single data response packet.
+    LISTENING           = 3 // Listening to packets as a server.
 };
 
 /**
  * An enum object storing how the daemon can restore it's previous status.
  */
 enum arp_restore_status {
-    EXP_NO_RESP = 0, // Don't expect a response.
-    EXP_DATA = 1, // Wait for data response.
-    RESUME_LISTEN = 2 // Return to listening.
+    EXP_NO_RESP         = 0, // Don't expect a response.
+    EXP_DATA            = 1, // Wait for data response.
+    RESUME_LISTEN       = 2 // Return to listening.
 };
 
 /**

@@ -101,7 +101,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
         // Creating the iov and msghdr structs for receiving here.
         struct iovec iov[3];
         iov[0].iov_base = intBuffer;
-        iov[0].iov_len = MAX_PACKET_SIZE;
+        iov[0].iov_len = sizeof(intBuffer);
 
         iov[1].iov_base = &mip_addr;
         iov[1].iov_len = sizeof(mip_addr);
@@ -310,7 +310,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
             // Creating the iov and msghdr structs for sending data back here.
             struct iovec iov[3];
             iov[0].iov_base = intBuffer;
-            iov[0].iov_len = MAX_PAYLOAD_SIZE;
+            iov[0].iov_len = sizeof(intBuffer);
 
             iov[1].iov_base = &mip_addr;
             iov[1].iov_len = sizeof(mip_addr);
@@ -431,11 +431,8 @@ int main(int argc, char * argv[]) {
     sockaddr.sun_family = AF_UNIX;
     strcpy(sockaddr.sun_path, sockpath);
 
-    // Tell the system to unlink it when the program is done.
-    if (unlink(sockpath) == -1) {
-        perror("main: unlink()");
-        printf("Daemon will continue, but UNIX socket may not be removed after completion.\n");
-    }
+    // Unlink/delete old socket file before creating the new one.
+    unlink(sockpath);
 
     if (bind(sock, (struct sockaddr *)&sockaddr, sizeof(sockaddr))) {
         perror("main: bind()");
@@ -557,7 +554,7 @@ int main(int argc, char * argv[]) {
 
             struct iovec iov[3];
             iov[0].iov_base = &intBuffer;
-            iov[0].iov_len = MAX_PACKET_SIZE;
+            iov[0].iov_len = sizeof(intBuffer);
 
             iov[1].iov_base = &mip_addr;
             iov[1].iov_len = sizeof(mip_addr);

@@ -56,7 +56,7 @@ int main(int argc, char* argv[]) {
 
     struct iovec iov[3];
     iov[0].iov_base = buffer;
-    iov[0].iov_len = MAX_PAYLOAD_SIZE;
+    iov[0].iov_len = sizeof(buffer);
 
     iov[1].iov_base = &mip_addr;
     iov[1].iov_len = sizeof(mip_addr);
@@ -88,7 +88,7 @@ int main(int argc, char* argv[]) {
     } else {
         printf("Unknown error occured.\n");
     }
-    printf("err: %d\n", infoBuffer);
+    printf("Status code: %d\n", infoBuffer);
 
     close(sock);
 }

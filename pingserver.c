@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
 
     struct iovec iov[3];
     iov[0].iov_base = &buffer;
-    iov[0].iov_len = MAX_PACKET_SIZE;
+    iov[0].iov_len = sizeof(buffer);
 
     iov[1].iov_base = &mip_addr;
     iov[1].iov_len = sizeof(mip_addr);
@@ -73,7 +73,11 @@ int main(int argc, char* argv[]) {
         }
 
         // Print it.
-        printf("Ping received: %s \n", buffer);
+        if (infoBuffer == NO_ERROR) {
+            printf("Ping received: %s \n", buffer);
+        } else {
+            printf("Unknown error.\n");
+        }
 
         // Prepare to send a pong back.
         memset(&buffer, 0, MAX_PAYLOAD_SIZE);
