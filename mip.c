@@ -60,7 +60,7 @@ uint8_t mip_get_src(uint32_t *packetHeader)
  */
 uint32_t mip_get_payload_length(uint32_t *packetHeader)
 {
-    return ((*packetHeader >> 4) & 0x000001FF) * 4;
+    return ntohs((*packetHeader >> 4) & 0x000001FF) * 4;
 }
 
 /**
@@ -88,8 +88,8 @@ void mip_build_header(
     uint8_t destination,
     uint8_t source,
     uint32_t payloadLength,
-    uint32_t *output)
-{
+    uint32_t *output
+) {
     uint32_t result = {0};
 
     // For each: Add relevant bits, then shift far enough to make space for the next field.
@@ -106,7 +106,7 @@ void mip_build_header(
     }
     result = result << 1;
 
-    if (isRouting)
+    if (isArp)
     {
         result = result | 1; // ARP bit.
     }
@@ -116,9 +116,9 @@ void mip_build_header(
 
     result = (result | source) << 9; // Source MIP addr.
 
-    result = (result | (payloadLength & 0x01FF)) << 4; // Payload Length.
+    result = (result | htons(payloadLength & 0x01FF)) << 4; // Payload Length.
 
-    result = result | 15; // TTL.
+    result = result | 0xF; // TTL.
 
     *output = htonl(result); // Write changes.
 }

@@ -236,6 +236,12 @@ void epoll_event(struct epoll_control * epctrl, int n) {
         // Dump incoming frame.
         debug_print("Incoming frame:\n");
         debug_print_frame(eth_frame);
+        debug_print(
+            "Transport: %u, Routing: %u, ARP: %u\n",
+            mip_is_transport(&mip_header),
+            mip_is_routing(&mip_header),
+            mip_is_arp(&mip_header)
+        );
 
         if (
             packetIsExpected == WAITING_ARP
@@ -325,8 +331,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                 exit(EXIT_FAILURE);
             }
 
-            debug_print("Received frame:");
-            debug_print_frame(eth_frame);
+            debug_print("Send to process.\n");
 
             // Update status
             if (packetIsExpected == WAITING_DATA) {
@@ -341,15 +346,15 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                         isMe = 1;
                         break;
                     }
+                    tmp_interface = tmp_interface->next;
                 }
                 if (isMe) {
                     uint32_t arpResponseBuffer = 0;
                     mip_build_header(
                         0, 0, 0,
                         mip_get_src(&mip_header),
-                        mip_get_dest(&mip_header),
+                        tmp_interface->mip_addr,
                         0, &arpResponseBuffer);
-                    arpResponseBuffer = (htonl(arpResponseBuffer));
                     
                     uint8_t tmp_mac[6] = {0};
                     memcpy(&tmp_mac, &(eth_frame->source), 6);
@@ -360,6 +365,9 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                         perror("epoll_event: send()");
                         exit(EXIT_FAILURE);
                     }
+
+                    debug_print("Send ARP response:\n");
+                    debug_print_frame(eth_frame);
                 }
             } else { // If not ARP packet.
                 debug_print("Unexpected packet received.\n");

@@ -88,6 +88,7 @@ int main(int argc, char* argv[]) {
     } else {
         printf("Unknown error occured.\n");
     }
+    printf("err: %d\n", infoBuffer);
 
     close(sock);
 }
