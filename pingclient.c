@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
     // Variables for sendmsg and recvmsg.
     char buffer[MAX_PACKET_SIZE] = {0};
     strcpy(buffer, msg);
-    unsigned char mip_addr = atoi(argv[1]);
+    unsigned char mip_addr = (unsigned char)atoi(argv[1]);
     enum info infoBuffer = NO_ERROR;
 
     struct iovec iov[3];
@@ -68,7 +68,7 @@ int main(int argc, char* argv[]) {
     message.msg_iov = iov;
     message.msg_iovlen = 3;
 
-    printf("Pinging %u..\n", atoi(argv[1]));
+    printf("Pinging %hhu..\n", mip_addr);
 
     if (sendmsg(sock, &message, 0) == -1) {
         perror("sendmsg()");
