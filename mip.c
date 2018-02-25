@@ -1,5 +1,6 @@
 #include "mip.h"
 
+#include <arpa/inet.h>
 #include <math.h>
 
 /**
@@ -63,6 +64,13 @@ uint32_t mip_get_payload_length(uint32_t *packetHeader)
 }
 
 /**
+ * Calculate the length of the payload, in 4 byte groups.
+ */
+uint16_t mip_calc_payload_length(int length) {
+    return (uint16_t)ceilf(length / 4);
+}
+
+/**
  * Build a packet header based on the specified input, and place it in the specified output.
  * isTransport - 1 if transport, 0 otherwise.
  * isRouting - 1 if routing, 0 otherwise.
@@ -108,9 +116,9 @@ void mip_build_header(
 
     result = (result | source) << 9; // Source MIP addr.
 
-    result = (result | (uint8_t)ceilf((payloadLength / 4))) << 4; // Payload Length.
+    result = (result | (payloadLength & 0x01FF)) << 4; // Payload Length.
 
     result = result | 15; // TTL.
 
-    *output = result; // Write changes.
+    *output = htonl(result); // Write changes.
 }

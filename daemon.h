@@ -14,6 +14,14 @@ enum packet_waiting_status {
     LISTENING = 3 // Listening to packets as a server.
 };
 
+/**
+ * An enum object storing how the daemon can restore it's previous status.
+ */
+enum arp_restore_status {
+    EXP_NO_RESP = 0, // Don't expect a response.
+    EXP_DATA = 1, // Wait for data response.
+    RESUME_LISTEN = 2 // Return to listening.
+};
 
 /**
  * A linked list structure to store all the network interfaces in, with associated information.

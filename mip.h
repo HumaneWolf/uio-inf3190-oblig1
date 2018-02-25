@@ -16,6 +16,8 @@ uint8_t mip_get_dest(uint32_t *packetHeader);
 uint8_t mip_get_src(uint32_t *packetHeader);
 uint32_t mip_get_payload_length(uint32_t *packetHeader);
 
+uint16_t mip_calc_payload_length(int length);
+
 void mip_build_header(
     uint8_t isTransport,
     uint8_t isRouting,

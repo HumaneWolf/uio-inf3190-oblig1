@@ -8,7 +8,7 @@ enum info {
     TIMED_OUT = 2, // Error: The quest timed out.
     LISTEN = 3, // Action: Listen to any incoming packets and send them to me.
     RESET = 4, // Action: Reset, stop listening.
-    NO_RESPONSE // Do not expect a response after sending this payload.
+    NO_RESPONSE = 5 // Do not expect a response after sending this payload.
 };
 
 #endif
