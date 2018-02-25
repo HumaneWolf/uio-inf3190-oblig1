@@ -100,20 +100,20 @@ void epoll_event(struct epoll_control * epctrl, int n) {
     if (epctrl->events[n].data.fd == epctrl->unix_fd) { // If the incoming event is on the established socket.
         // Creating the iov and msghdr structs for receiving here.
         struct iovec iov[3];
-        iov[0].iov_base = intBuffer;
-        iov[0].iov_len = sizeof(intBuffer);
+        iov[0].iov_base = &mip_addr;
+        iov[0].iov_len = sizeof(mip_addr);
 
-        iov[1].iov_base = &mip_addr;
-        iov[1].iov_len = sizeof(mip_addr);
+        iov[1].iov_base = &infoBuffer;
+        iov[1].iov_len = sizeof(infoBuffer);
 
-        iov[2].iov_base = &infoBuffer;
-        iov[2].iov_len = sizeof(infoBuffer);
+        iov[2].iov_base = intBuffer;
+        iov[2].iov_len = sizeof(intBuffer);
 
         struct msghdr message = {0};
         message.msg_iov = iov;
         message.msg_iovlen = 3;
 
-        if (recvmsg(epctrl->events[n].data.fd, &message, 0) == -1) {
+        if (recvmsg(epctrl->events[n].data.fd, &message, MSG_WAITALL) == -1) {
             perror("epoll_event: recvmsg()");
             exit(EXIT_FAILURE);
         }
@@ -169,8 +169,9 @@ void epoll_event(struct epoll_control * epctrl, int n) {
 
                     send(tmp_interface->sock, &extBuffer, payloadLength * 4, 0);
 
-                    printf("Frame sent:\n");
+                    debug_print("Frame sent:\n");
                     debug_print_frame(eth_frame);
+                    debug_print("MIP To: %u, From: %u.\n", mip_addr, tmp_interface->mip_addr);
 
                     tmp_interface = tmp_interface->next;
                 }
@@ -200,19 +201,21 @@ void epoll_event(struct epoll_control * epctrl, int n) {
 
                     mip_build_header(0, 0, 1, mip_addr, tmp_interface->mip_addr, 0, (uint32_t*)(eth_frame->msg));
 
-                    if (send(tmp_interface->sock, &extBuffer, sizeof(extBuffer), 0) == -1) {
+                    if (send(tmp_interface->sock, &extBuffer, 18, 0) == -1) {
                         perror("epoll_event: send()");
                         exit(EXIT_FAILURE);
                     }
 
                     debug_print("ARP frame sent on %s from %u:\n", tmp_interface->name, tmp_interface->mip_addr);
                     debug_print_frame(eth_frame);
+                    debug_print("MIP To: %u, From: %u.\n", mip_addr, tmp_interface->mip_addr);
 
                     tmp_interface = tmp_interface->next;
                 }
             }
         }
     } else {
+        // Get headers.
         if (recv(epctrl->events[n].data.fd, &extBuffer, 18, 0) == -1) {
             perror("epoll_event: recv()");
             exit(EXIT_FAILURE);
@@ -309,14 +312,14 @@ void epoll_event(struct epoll_control * epctrl, int n) {
 
             // Creating the iov and msghdr structs for sending data back here.
             struct iovec iov[3];
-            iov[0].iov_base = intBuffer;
-            iov[0].iov_len = sizeof(intBuffer);
+            iov[0].iov_base = &mip_addr;
+            iov[0].iov_len = sizeof(mip_addr);
 
-            iov[1].iov_base = &mip_addr;
-            iov[1].iov_len = sizeof(mip_addr);
+            iov[1].iov_base = &infoBuffer;
+            iov[1].iov_len = sizeof(infoBuffer);
 
-            iov[2].iov_base = &infoBuffer;
-            iov[2].iov_len = sizeof(infoBuffer);
+            iov[2].iov_base = intBuffer;
+            iov[2].iov_len = sizeof(intBuffer);
 
             struct msghdr message = {0};
             message.msg_iov = iov;
@@ -361,7 +364,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                     memcpy(&(eth_frame->source), &(eth_frame->destination), 6);
                     memcpy(&(eth_frame->destination), &tmp_mac, 6);
 
-                    if (send(epctrl->events[n].data.fd, &arpResponseBuffer, sizeof(arpResponseBuffer), 0) == -1) {
+                    if (send(epctrl->events[n].data.fd, &arpResponseBuffer, 18, 0) == -1) {
                         perror("epoll_event: send()");
                         exit(EXIT_FAILURE);
                     }
@@ -553,14 +556,14 @@ int main(int argc, char * argv[]) {
             packetIsExpected = NOT_WAITING;
 
             struct iovec iov[3];
-            iov[0].iov_base = &intBuffer;
-            iov[0].iov_len = sizeof(intBuffer);
+            iov[0].iov_base = &mip_addr;
+            iov[0].iov_len = sizeof(mip_addr);
 
-            iov[1].iov_base = &mip_addr;
-            iov[1].iov_len = sizeof(mip_addr);
+            iov[1].iov_base = &infoBuffer;
+            iov[1].iov_len = sizeof(infoBuffer);
 
-            iov[2].iov_base = &infoBuffer;
-            iov[2].iov_len = sizeof(infoBuffer);
+            iov[2].iov_base = &intBuffer;
+            iov[2].iov_len = sizeof(intBuffer);
 
             struct msghdr message = {0};
             message.msg_iov = iov;

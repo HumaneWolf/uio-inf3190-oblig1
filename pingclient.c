@@ -49,24 +49,26 @@ int main(int argc, char* argv[]) {
     }
 
     // Variables for sendmsg and recvmsg.
-    char buffer[MAX_PAYLOAD_SIZE] = {0};
+    char buffer[MAX_PACKET_SIZE] = {0};
     strcpy(buffer, msg);
-    char mip_addr = atoi(argv[1]);
+    unsigned char mip_addr = atoi(argv[1]);
     enum info infoBuffer = NO_ERROR;
 
     struct iovec iov[3];
-    iov[0].iov_base = buffer;
-    iov[0].iov_len = sizeof(buffer);
+    iov[0].iov_base = &mip_addr;
+    iov[0].iov_len = sizeof(mip_addr);
 
-    iov[1].iov_base = &mip_addr;
-    iov[1].iov_len = sizeof(mip_addr);
+    iov[1].iov_base = &infoBuffer;
+    iov[1].iov_len = sizeof(infoBuffer);
 
-    iov[2].iov_base = &infoBuffer;
-    iov[2].iov_len = sizeof(infoBuffer);
+    iov[2].iov_base = buffer;
+    iov[2].iov_len = sizeof(buffer);
 
     struct msghdr message = {0};
     message.msg_iov = iov;
     message.msg_iovlen = 3;
+
+    printf("Pinging %u..\n", atoi(argv[1]));
 
     if (sendmsg(sock, &message, 0) == -1) {
         perror("sendmsg()");
@@ -76,19 +78,20 @@ int main(int argc, char* argv[]) {
     memset(&buffer, 0, sizeof(buffer));
 
     // Receive message.
-    if (recvmsg(sock, &message, 0) == -1) {
+    if (recvmsg(sock, &message, MSG_WAITALL) == -1) {
         perror("recvmsg()");
         exit(EXIT_FAILURE);
     }
 
     if (infoBuffer == NO_ERROR) { // If no error occured.
-        printf("Ping received: %s \n", buffer);
+        printf("Ping received: %s\n", buffer);
     } else if (infoBuffer == TIMED_OUT) { // If the connection timed out.
         printf("Timed out.\n");
+    } else if (infoBuffer == TOO_LONG_PAYLOAD) {
+        printf("Payload too large.\n");
     } else {
         printf("Unknown error occured.\n");
     }
-    printf("Status code: %d\n", infoBuffer);
 
     close(sock);
 }

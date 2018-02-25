@@ -41,19 +41,19 @@ int main(int argc, char* argv[]) {
     }
 
     // Variables for sendmsg and recvmsg.
-    char buffer[MAX_PAYLOAD_SIZE] = {0};
+    char buffer[MAX_PACKET_SIZE] = {0};
     char mip_addr = 0;
     enum info infoBuffer = LISTEN;
 
     struct iovec iov[3];
-    iov[0].iov_base = &buffer;
-    iov[0].iov_len = sizeof(buffer);
+    iov[0].iov_base = &mip_addr;
+    iov[0].iov_len = sizeof(mip_addr);
 
-    iov[1].iov_base = &mip_addr;
-    iov[1].iov_len = sizeof(mip_addr);
+    iov[1].iov_base = &infoBuffer;
+    iov[1].iov_len = sizeof(infoBuffer);
 
-    iov[2].iov_base = &infoBuffer;
-    iov[2].iov_len = sizeof(infoBuffer);
+    iov[2].iov_base = buffer;
+    iov[2].iov_len = sizeof(buffer);
 
     struct msghdr message = {0};
     message.msg_iov = iov;
@@ -67,7 +67,7 @@ int main(int argc, char* argv[]) {
 
     while (1) {
         // Receive message.
-        if (recvmsg(sock, &message, 0) == -1) {
+        if (recvmsg(sock, &message, MSG_WAITALL) == -1) {
             perror("recvmsg()");
             exit(EXIT_FAILURE);
         }
