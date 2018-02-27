@@ -2,15 +2,17 @@
 
 #include <arpa/inet.h>
 #include <math.h>
+#include <string.h>
 
 /**
  * Get whether it is a transport MIP packet.
  * packetHeader - A pointer to the packet header.
  * Return: 1 if transport, 0 if not.
  */
-uint8_t mip_is_transport(uint32_t *packetHeader)
-{
-    return (uint8_t)((*packetHeader >> 31) & 1);
+uint8_t mip_is_transport(char *packetHeader) {
+    uint32_t temp;
+    memcpy(&temp, packetHeader, 4);
+    return (uint8_t)((temp >> 31) & 1);
 }
 
 /**
@@ -18,9 +20,10 @@ uint8_t mip_is_transport(uint32_t *packetHeader)
  * packetHeader - A pointer to the packet header.
  * Return: 1 if routing, 0 if not.
  */
-uint8_t mip_is_routing(uint32_t *packetHeader)
-{
-    return (uint8_t)((*packetHeader >> 30) & 1);
+uint8_t mip_is_routing(char *packetHeader) {
+    uint32_t temp;
+    memcpy(&temp, packetHeader, 4);
+    return (uint8_t)((temp >> 30) & 1);
 }
 
 /**
@@ -28,9 +31,10 @@ uint8_t mip_is_routing(uint32_t *packetHeader)
  * packetHeader - A pointer to the packet header.
  * Return: 1 if arp, 0 if not.
  */
-uint8_t mip_is_arp(uint32_t *packetHeader)
-{
-    return (uint8_t)((*packetHeader >> 29) & 1);
+uint8_t mip_is_arp(char *packetHeader) {
+    uint32_t temp;
+    memcpy(&temp, packetHeader, 4);
+    return (uint8_t)((temp >> 29) & 1);
 }
 
 /**
@@ -38,9 +42,10 @@ uint8_t mip_is_arp(uint32_t *packetHeader)
  * packetHeader - A pointer to the packet header.
  * output - The location to output the MIP address.
  */
-uint8_t mip_get_dest(uint32_t *packetHeader)
-{
-    return (uint8_t)((*packetHeader >> 21) & 0x000000FF);
+uint8_t mip_get_dest(char *packetHeader) {
+    uint32_t temp;
+    memcpy(&temp, packetHeader, 4);
+    return (uint8_t)((temp >> 21) & 0xFF);
 }
 
 /**
@@ -48,9 +53,10 @@ uint8_t mip_get_dest(uint32_t *packetHeader)
  * packetHeader - A pointer to the packet header.
  * output - The location to output the MIP address.
  */
-uint8_t mip_get_src(uint32_t *packetHeader)
-{
-    return (uint8_t)((*packetHeader >> 13) & 0x000000FF);
+uint8_t mip_get_src(char *packetHeader) {
+    uint32_t temp;
+    memcpy(&temp, packetHeader, 4);
+    return (uint8_t)((temp >> 13) & 0xFF);
 }
 
 /**
@@ -58,8 +64,9 @@ uint8_t mip_get_src(uint32_t *packetHeader)
  * packetHeader - A pointer to the packet header.
  * output - The location to output the length, in number of bytes.
  */
-uint32_t mip_get_payload_length(uint32_t *packetHeader)
-{
+uint32_t mip_get_payload_length(char *packetHeader) {
+    uint32_t temp;
+    memcpy(&temp, packetHeader, 4);
     return ntohs((*packetHeader >> 4) & 0x000001FF) * 4;
 }
 
@@ -88,26 +95,23 @@ void mip_build_header(
     uint8_t destination,
     uint8_t source,
     uint32_t payloadLength,
-    uint32_t *output
+    char *output
 ) {
-    uint32_t result = {0};
+    uint32_t result = 0;
 
     // For each: Add relevant bits, then shift far enough to make space for the next field.
 
-    if (isTransport)
-    {
+    if (isTransport) {
         result = result | 1; // Transport bit.
     }
     result = result << 1;
 
-    if (isRouting)
-    {
+    if (isRouting) {
         result = result | 1; // Routing bit.
     }
     result = result << 1;
 
-    if (isArp)
-    {
+    if (isArp) {
         result = result | 1; // ARP bit.
     }
     result = result << 8;
@@ -120,5 +124,8 @@ void mip_build_header(
 
     result = result | 0xF; // TTL.
 
-    *output = htonl(result); // Write changes.
+    // Ensure the bytes are in the right order, not swapped due to endian-ness.
+    result = htonl(result);
+
+    memcpy(output, &result, 4);
 }

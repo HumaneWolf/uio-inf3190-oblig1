@@ -139,6 +139,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
             for (i = 0; i < 6; i++) {
                 if (macCache[mip_addr][i] != 0) {
                     isMipKnown = 1;
+                    break;
                 }
             }
 
@@ -162,7 +163,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                         mip_addr,
                         tmp_interface->mip_addr,
                         payloadLength,
-                        (uint32_t*)(eth_frame->msg)
+                        eth_frame->msg
                     );
 
                     memcpy((char*)(&eth_frame->msg[4]), &intBuffer, payloadLength * 4);
@@ -190,16 +191,17 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                 }
                 packetIsExpected = WAITING_ARP;
 
+                // Make ethernet frame
+                struct ethernet_frame * eth_frame = (struct ethernet_frame*)&extBuffer;
+                memset(eth_frame->destination, 0xFF, 6);
+                eth_frame->protocol = htons(ETH_P_MIP);
+
                 // Send ARP requests.
                 struct eth_interface * tmp_interface = interfaces;
                 while (tmp_interface) {
-                    struct ethernet_frame * eth_frame = (struct ethernet_frame*)&extBuffer;
-
-                    memset(eth_frame->destination, 0xFF, 6);
                     memcpy(eth_frame->source, tmp_interface->mac, 6);
-                    eth_frame->protocol = htons(ETH_P_MIP);
 
-                    mip_build_header(0, 0, 1, mip_addr, tmp_interface->mip_addr, 0, (uint32_t*)(eth_frame->msg));
+                    mip_build_header(0, 0, 1, destinationMip, tmp_interface->mip_addr, 0, eth_frame->msg);
 
                     if (send(tmp_interface->sock, &extBuffer, 18, 0) == -1) {
                         perror("epoll_event: send()");
@@ -208,7 +210,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
 
                     debug_print("ARP frame sent on %s from %u:\n", tmp_interface->name, tmp_interface->mip_addr);
                     debug_print_frame(eth_frame);
-                    debug_print("MIP To: %u, From: %u.\n", mip_addr, tmp_interface->mip_addr);
+                    debug_print("MIP To: %u, From: %u.\n", destinationMip, tmp_interface->mip_addr);
 
                     tmp_interface = tmp_interface->next;
                 }
@@ -220,13 +222,13 @@ void epoll_event(struct epoll_control * epctrl, int n) {
             perror("epoll_event: recv()");
             exit(EXIT_FAILURE);
         }
-        struct ethernet_frame *eth_frame = (struct ethernet_frame *)&extBuffer; // Create an eth frame reference to the buffer.
+        struct ethernet_frame *eth_frame = (struct ethernet_frame *)&extBuffer; // Create an eth frame pointer to the buffer.
 
-        uint32_t mip_header = ntohl(*(eth_frame->msg)); // Store the header.
-        char * mip_content = &(eth_frame->msg[4]); // Store a pointer to the payload.
+        char * mip_header = eth_frame->msg; // Store a direct pointer to the MIP header.
+        char * mip_content = &(eth_frame->msg[4]); // Store a pointer to the MIP payload.
 
         // If there is a payload: Get it.
-        int tmp_payloadLength = mip_get_payload_length(&mip_header) * 4;
+        int tmp_payloadLength = mip_get_payload_length(mip_header) * 4;
         if (tmp_payloadLength > 0) {
             if (recv(epctrl->events[n].data.fd, mip_content, tmp_payloadLength, 0) == -1) {
                 perror("epoll_event: recv()");
@@ -234,27 +236,28 @@ void epoll_event(struct epoll_control * epctrl, int n) {
             }
         }
 
-        memcpy(macCache[mip_get_src((uint32_t *)&(eth_frame->msg))], eth_frame->source, 6); // Store source MIP in cache.
+        // Store source MIP in cache.
+        memcpy(macCache[mip_get_src(mip_header)], eth_frame->source, 6);
 
         // Dump incoming frame.
         debug_print("Incoming frame:\n");
         debug_print_frame(eth_frame);
         debug_print(
             "Transport: %u, Routing: %u, ARP: %u\n",
-            mip_is_transport(&mip_header),
-            mip_is_routing(&mip_header),
-            mip_is_arp(&mip_header)
+            mip_is_transport(mip_header),
+            mip_is_routing(mip_header),
+            mip_is_arp(mip_header)
         );
 
         if (
             packetIsExpected == WAITING_ARP
-            && !mip_is_transport(&mip_header)
-            && !mip_is_routing(&mip_header)
-            && !mip_is_arp(&mip_header)
+            && !mip_is_transport(mip_header)
+            && !mip_is_routing(mip_header)
+            && !mip_is_arp(mip_header)
         ) { // If ARP response packet is expected.
             struct eth_interface * tmp_interface = interfaces;
             while (tmp_interface) {
-                memcpy(eth_frame->destination, macCache[mip_get_src(&(mip_header))], 6);
+                memcpy(eth_frame->destination, macCache[mip_get_src(mip_header)], 6);
                 memcpy(eth_frame->source, tmp_interface->mac, 6);
                 eth_frame->protocol = htons(ETH_P_MIP);
 
@@ -267,13 +270,15 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                     destinationMip,
                     tmp_interface->mip_addr,
                     payloadLength,
-                    (uint32_t*)eth_frame->msg
+                    mip_header
                 );
 
                 send(tmp_interface->sock, &extBuffer, payloadLength * 4, 0);
 
-                debug_print("Frame sent:\n");
+                debug_print("Frame sent after ARP received:\n");
                 debug_print_frame(eth_frame);
+
+                tmp_interface = tmp_interface->next;
             }
 
             // Update status
@@ -288,9 +293,9 @@ void epoll_event(struct epoll_control * epctrl, int n) {
         } else if (
             (packetIsExpected == WAITING_DATA
             || packetIsExpected == LISTENING)
-            && mip_is_transport(&mip_header)
-            && !mip_is_routing(&mip_header)
-            && !mip_is_arp(&mip_header)
+            && mip_is_transport(mip_header)
+            && !mip_is_routing(mip_header)
+            && !mip_is_arp(mip_header)
         ) { // If data packet is expected.
 
             // Is it actually ment for us?
@@ -299,7 +304,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
             while (tmp_interface) {
                 if (
                     tmp_interface->sock == epctrl->events[n].data.fd
-                    && tmp_interface->mip_addr == mip_get_dest(&mip_header)
+                    && tmp_interface->mip_addr == mip_get_dest(mip_header)
                 ) {
                     mentForUs = 1;
                     break;
@@ -326,7 +331,7 @@ void epoll_event(struct epoll_control * epctrl, int n) {
             message.msg_iovlen = 3;
 
             infoBuffer = NO_ERROR;
-            mip_addr = mip_get_src(&mip_header);
+            mip_addr = mip_get_src(mip_header);
             memcpy(intBuffer, mip_content, MAX_PAYLOAD_SIZE);
 
             if (sendmsg(epctrl->unix_fd, &message, 0) == -1) {
@@ -341,35 +346,37 @@ void epoll_event(struct epoll_control * epctrl, int n) {
                 packetIsExpected = NOT_WAITING;
             }
         } else { // No packet of this kind is expected.
-            if (mip_is_arp(&mip_header)) { // If ARP packet.
+            if (mip_is_arp(mip_header)) { // If ARP packet.
                 char isMe = 0;
                 struct eth_interface * tmp_interface = interfaces;
                 while (tmp_interface) {
-                    if (mip_get_dest(&mip_header) == tmp_interface->mip_addr) {
+                    if (mip_get_dest(mip_header) == tmp_interface->mip_addr) {
                         isMe = 1;
                         break;
                     }
                     tmp_interface = tmp_interface->next;
                 }
+                printf("IsMe %d\n", isMe);
                 if (isMe) {
-                    uint32_t arpResponseBuffer = 0;
                     mip_build_header(
                         0, 0, 0,
-                        mip_get_src(&mip_header),
+                        mip_get_src(mip_header),
                         tmp_interface->mip_addr,
-                        0, &arpResponseBuffer);
+                        0,
+                        eth_frame->msg
+                    );
                     
                     uint8_t tmp_mac[6] = {0};
-                    memcpy(&tmp_mac, &(eth_frame->source), 6);
-                    memcpy(&(eth_frame->source), &(eth_frame->destination), 6);
-                    memcpy(&(eth_frame->destination), &tmp_mac, 6);
+                    memcpy(&tmp_mac, eth_frame->source, 6);
+                    memcpy(eth_frame->source, eth_frame->destination, 6);
+                    memcpy(eth_frame->destination, &tmp_mac, 6);
 
-                    if (send(epctrl->events[n].data.fd, &arpResponseBuffer, 18, 0) == -1) {
+                    if (send(epctrl->events[n].data.fd, &extBuffer, 18, 0) == -1) {
                         perror("epoll_event: send()");
                         exit(EXIT_FAILURE);
                     }
 
-                    debug_print("Send ARP response:\n");
+                    debug_print("Sent ARP response:\n");
                     debug_print_frame(eth_frame);
                 }
             } else { // If not ARP packet.

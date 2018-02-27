@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
     // Variables for sendmsg and recvmsg.
     char buffer[MAX_PACKET_SIZE] = {0};
     strcpy(buffer, msg);
-    unsigned char mip_addr = (unsigned char)atoi(argv[1]);
+    unsigned char mip_addr = atoi(argv[1]);
     enum info infoBuffer = NO_ERROR;
 
     struct iovec iov[3];
