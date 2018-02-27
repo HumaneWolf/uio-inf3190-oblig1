@@ -15,7 +15,7 @@ void enable_debug_print() {
 
 /**
  * Formats and prints a line of text if, and only if, debug printing is enabled.
- * For arguments, see the printf documentation.
+ * For arguments, see the printf documentation. It's exactly the same.
  */
 void debug_print(char * str, ...) {
     if (!setting_debug) return;
@@ -27,7 +27,8 @@ void debug_print(char * str, ...) {
 
 /**
  * If debug printing is enabled; format and print a single ethernet frame.
- * frame - The ethernet frame struct to print.
+ * Input:
+ *      frame - The ethernet frame struct to print.
  */
 void debug_print_frame(struct ethernet_frame * frame) {
     if (!setting_debug) return;

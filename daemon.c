@@ -50,9 +50,13 @@ uint8_t macCache[256][6] = {0};
 
 /**
  * Add a file descriptor to the epoll.
- * epctrl - Epoll controller struct.
- * fd - The file descriptor to add.
- * Returns 0 if successful.
+ * Input:
+ *      epctrl - Epoll controller struct.
+ *      fd - The file descriptor to add.
+ * Return:
+ *      Returns 0 if successful.
+ * Error:
+ *      Will end the program in case of errors.
  */
 int epoll_add(struct epoll_control *epctrl, int fd) {
     struct epoll_event ev = {0};
@@ -67,9 +71,11 @@ int epoll_add(struct epoll_control *epctrl, int fd) {
 
 /**
  * Handle an incoming connection event from any socket.
- * epctrl - The epoll controller struct.
- * n - The event to handle.
- * No return value.
+ * Input:
+ *      epctrl - The epoll controller struct.
+ *      n - The event counter, says which event to handle.
+ * Affected by:
+ *      packetIsExpected, respBuffer, macCache, destinationMip, arpBuffer.
  */
 void epoll_event(struct epoll_control * epctrl, int n) {
     unsigned char mip_addr = 0; // Mip address storage, for sendmsg and recvmsg.
@@ -388,6 +394,8 @@ void epoll_event(struct epoll_control * epctrl, int n) {
 
 /**
  * Main method.
+ * Affected by:
+ *      packetIsExpected, myAddresses.
  */
 int main(int argc, char * argv[]) {
     // Args count check
@@ -429,11 +437,6 @@ int main(int argc, char * argv[]) {
     int sock = socket(AF_UNIX, SOCK_SEQPACKET, 0);
     if (sock == -1) {
         perror("main: socket()");
-        exit(EXIT_FAILURE);
-    }
-
-    if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFL, 0) | O_NONBLOCK) == -1) {
-        perror("main: fcntl(setting socket nonblocking)");
         exit(EXIT_FAILURE);
     }
 
@@ -497,11 +500,6 @@ int main(int argc, char * argv[]) {
             sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
             if (sock == -1) {
                 perror("main: socket()");
-                exit(EXIT_FAILURE);
-            }
-
-            if (fcntl(sock, F_SETFL, fcntl(sock, F_GETFL, 0) | O_NONBLOCK) == -1) {
-                perror("main: fcntl(setting socket nonblocking)");
                 exit(EXIT_FAILURE);
             }
 

@@ -6,7 +6,14 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 
-int get_mac_addr(int sock, uint8_t mac[6], char *interface_name) {
+/**
+ * Gets the mac address for an interface.
+ * Input:
+ *      sock - The socket attached to the interface.
+ *      mac - A pointer to the place to store the mac address. At least 6 bytes.
+ *      interface_name - The name of the interface.
+ */
+void get_mac_addr(int sock, uint8_t mac[6], char *interface_name) {
     struct ifreq dev;
     strcpy(dev.ifr_name, interface_name);
 
@@ -16,9 +23,13 @@ int get_mac_addr(int sock, uint8_t mac[6], char *interface_name) {
     }
 
     memcpy(mac, dev.ifr_hwaddr.sa_data, 6);
-    return 0;
 }
 
+/**
+ * Prints a mac address.
+ * Input:
+ *      mac - A pointer to where a mac address is stored.
+ */
 void print_mac(uint8_t mac[6]) {
     for (int i = 0; i < 6; i++) {
         printf("%x", mac[i]);

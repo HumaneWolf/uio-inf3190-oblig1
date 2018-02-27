@@ -6,8 +6,10 @@
 
 /**
  * Get whether it is a transport MIP packet.
- * packetHeader - A pointer to the packet header.
- * Return: 1 if transport, 0 if not.
+ * Input:
+ *      packetHeader - A pointer to the packet header.
+ * Return:
+ *      1 if transport packet bit is set, 0 otherwise.
  */
 uint8_t mip_is_transport(char *packetHeader) {
     uint32_t temp;
@@ -17,8 +19,10 @@ uint8_t mip_is_transport(char *packetHeader) {
 
 /**
  * Get whether it is a routing MIP packet.
- * packetHeader - A pointer to the packet header.
- * Return: 1 if routing, 0 if not.
+ * Input:
+ *      packetHeader - A pointer to the packet header.
+ * Return:
+ *      1 if routing packet bit is set, 0 otherwise.
  */
 uint8_t mip_is_routing(char *packetHeader) {
     uint32_t temp;
@@ -28,8 +32,10 @@ uint8_t mip_is_routing(char *packetHeader) {
 
 /**
  * Get whether it is a arp MIP packet.
- * packetHeader - A pointer to the packet header.
- * Return: 1 if arp, 0 if not.
+ * Input:
+ *      packetHeader - A pointer to the packet header.
+ * Return:
+ *      1 if arp packet bit is set, 0 otherwise.
  */
 uint8_t mip_is_arp(char *packetHeader) {
     uint32_t temp;
@@ -39,8 +45,10 @@ uint8_t mip_is_arp(char *packetHeader) {
 
 /**
  * Get the destination MIP address from a MIP header.
- * packetHeader - A pointer to the packet header.
- * output - The location to output the MIP address.
+ * Input:
+ *      packetHeader - A pointer to the packet header.
+ * Return:
+ *      The MIP destination address.
  */
 uint8_t mip_get_dest(char *packetHeader) {
     uint32_t temp;
@@ -50,8 +58,10 @@ uint8_t mip_get_dest(char *packetHeader) {
 
 /**
  * Get the source MIP address from a MIP header.
- * packetHeader - A pointer to the packet header.
- * output - The location to output the MIP address.
+ * Input:
+ *      packetHeader - A pointer to the packet header.
+ * Return:
+ *      The MIP source address.
  */
 uint8_t mip_get_src(char *packetHeader) {
     uint32_t temp;
@@ -61,8 +71,10 @@ uint8_t mip_get_src(char *packetHeader) {
 
 /**
  * Get the payload length of a MIP packet.
- * packetHeader - A pointer to the packet header.
- * output - The location to output the length, in number of bytes.
+ * Input:
+ *      packetHeader - A pointer to the packet header.
+ * Return:
+ *      The location to output the length, in number of bytes.
  */
 uint32_t mip_get_payload_length(char *packetHeader) {
     uint32_t temp;
@@ -72,6 +84,8 @@ uint32_t mip_get_payload_length(char *packetHeader) {
 
 /**
  * Calculate the length of the payload, in 4 byte groups.
+ * Input:
+ *      length - The length in bytes.
  */
 uint16_t mip_calc_payload_length(int length) {
     return (uint16_t)ceilf(length / 4);
@@ -79,14 +93,15 @@ uint16_t mip_calc_payload_length(int length) {
 
 /**
  * Build a packet header based on the specified input, and place it in the specified output.
- * isTransport - 1 if transport, 0 otherwise.
- * isRouting - 1 if routing, 0 otherwise.
- * isArp - 1 if arp, 0 otherwise.
- * destination - Destination MIP address.
- * source - source MIP address.
- * payloadLength - Length of the payload.
- * ttl - The time to live (15).
- * output - Pointer to a location to store the result.
+ * Input:
+ *      isTransport - 1 if transport, 0 otherwise.
+ *      isRouting - 1 if routing, 0 otherwise.
+ *      isArp - 1 if arp, 0 otherwise.
+ *      destination - Destination MIP address.
+ *      source - source MIP address.
+ *      payloadLength - Length of the payload.
+ *      ttl - The time to live (15).
+ *      output - Pointer to a location to store the result. Must be at least 4 bytes.
  */
 void mip_build_header(
     uint8_t isTransport,

@@ -78,7 +78,7 @@ int main(int argc, char* argv[]) {
     memset(&buffer, 0, sizeof(buffer));
 
     // Receive message.
-    if (recvmsg(sock, &message, MSG_WAITALL) == -1) {
+    if (recvmsg(sock, &message, 0) == -1) {
         perror("recvmsg()");
         exit(EXIT_FAILURE);
     }
